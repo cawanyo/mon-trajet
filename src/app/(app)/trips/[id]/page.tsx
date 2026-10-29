@@ -820,13 +820,33 @@ function TripDetailsContent() {
   }
 
   return (
-    <div className="relative min-h-dvh bg-[#f4f7fb] text-slate-800 flex flex-col select-none overflow-x-hidden">
+    <div className="relative h-dvh max-h-dvh bg-[#f4f7fb] text-slate-800 flex flex-col select-none overflow-hidden">
       {/* Halos d'ambiance pour accentuer l'effet de réfraction du verre dépoli */}
       <div className="pointer-events-none fixed -top-20 -right-20 h-80 w-80 rounded-full bg-blue-200/35 blur-3xl z-10" />
       <div className="pointer-events-none fixed top-1/2 -left-20 h-72 w-72 rounded-full bg-teal-100/35 blur-3xl z-10" />
 
-      {/* 1. SECTION SUPÉRIEURE : CARTE INTERACTIVE (IDENTIQUE AU TEMPLATE) */}
-      <div className="relative h-[48vh] min-h-[300px] w-full bg-slate-100 overflow-hidden">
+      {/* BOUTON RETOUR (<) FIXE EN HAUT À GAUCHE (RESPECT DE LA SAFE AREA) */}
+      <button
+        onClick={() => router.push("/trips")}
+        className="fixed left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full glass-card bg-white/90 backdrop-blur-xl text-slate-700 shadow-md border border-white/90 hover:bg-white active:scale-95 transition-all"
+        style={{ top: "max(1rem, env(safe-area-inset-top, 1rem))" }}
+        title="Retour"
+      >
+        <ChevronLeft className="h-6 w-6 stroke-[2.4]" />
+      </button>
+
+      {/* BOUTON PARAMÈTRES (⚙) FIXE EN HAUT À DROITE */}
+      <button
+        onClick={() => setShowSettingsModal(true)}
+        className="fixed right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full glass-card bg-white/90 backdrop-blur-xl text-slate-700 shadow-md border border-white/90 hover:bg-white active:scale-95 transition-all"
+        style={{ top: "max(1rem, env(safe-area-inset-top, 1rem))" }}
+        title="Options du trajet"
+      >
+        <Settings className="h-5 w-5 stroke-[2.2]" />
+      </button>
+
+      {/* 1. SECTION SUPÉRIEURE : CARTE INTERACTIVE FIXE */}
+      <div className="relative h-[38dvh] sm:h-[44dvh] min-h-[220px] w-full bg-slate-100 overflow-hidden flex-shrink-0">
         <Map
           ref={mapRef}
           {...viewState}
@@ -873,42 +893,25 @@ function TripDetailsContent() {
           </Marker>
         </Map>
 
-        {/* Bouton circulaire retour (<) en haut à gauche - Glassy */}
-        <button
-          onClick={() => router.push("/trips")}
-          className="absolute top-4 left-4 z-20 flex h-11 w-11 items-center justify-center rounded-full glass-card bg-white/85 backdrop-blur-xl text-slate-700 shadow-md border border-white/90 hover:bg-white active:scale-95 transition-all"
-          title="Retour"
-        >
-          <ChevronLeft className="h-6 w-6 stroke-[2.4]" />
-        </button>
-
-        {/* Bouton circulaire paramètres (⚙) en haut à droite - Glassy */}
-        <button
-          onClick={() => setShowSettingsModal(true)}
-          className="absolute top-4 right-4 z-20 flex h-11 w-11 items-center justify-center rounded-full glass-card bg-white/85 backdrop-blur-xl text-slate-700 shadow-md border border-white/90 hover:bg-white active:scale-95 transition-all"
-          title="Options du trajet"
-        >
-          <Settings className="h-5 w-5 stroke-[2.2]" />
-        </button>
-
-        {/* Bouton circulaire recentrer (cible) en bas à droite au-dessus de la carte - Glassy */}
+        {/* Bouton circulaire recentrer (cible) en bas à droite au-dessus de la carte */}
         <button
           onClick={fitRouteBounds}
-          className="absolute bottom-10 right-4 z-20 flex h-11 w-11 items-center justify-center rounded-full glass-card bg-white/85 backdrop-blur-xl text-[#1a3860] shadow-xl border border-white/90 hover:bg-white active:scale-95 transition-all"
+          className="absolute bottom-8 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full glass-card bg-white/90 backdrop-blur-xl text-[#1a3860] shadow-lg border border-white/90 hover:bg-white active:scale-95 transition-all"
           title="Centrer l'itinéraire"
         >
           <Compass className="h-5 w-5 stroke-[2.2] text-[#1a3860]" />
         </button>
       </div>
 
-      {/* 2. SECTION INFÉRIEURE : FEUILLE "MON TRAJET" GLASSY & ULTRA PROPRE */}
-      <div className="relative -mt-6 z-20 flex-1 rounded-t-[36px] glass-panel bg-white/85 backdrop-blur-2xl border-t border-white/90 px-5 pt-3 pb-6 shadow-[0_-16px_40px_rgba(15,35,60,0.08)] flex flex-col justify-between min-h-[52vh]">
-        <div className="flex-1 flex flex-col">
+      {/* 2. SECTION INFÉRIEURE : FEUILLE "MON TRAJET" AVEC DÉFILEMENT INTERNE */}
+      <div className="relative -mt-5 z-20 flex-1 min-h-0 rounded-t-[32px] sm:rounded-t-[36px] glass-panel bg-white/95 backdrop-blur-2xl border-t border-white/90 shadow-[0_-16px_40px_rgba(15,35,60,0.08)] flex flex-col overflow-hidden">
+        {/* EN-TÊTE FIXE DE LA FEUILLE : POIGNÉE + 3 ONGLETS */}
+        <div className="px-5 pt-2.5 pb-2 flex-shrink-0">
           {/* Poignée de glissement supérieure */}
-          <div className="h-1.5 w-11 rounded-full bg-slate-300/80 mx-auto mb-3" />
+          <div className="h-1.5 w-11 rounded-full bg-slate-300/80 mx-auto mb-2.5" />
 
           {/* LIGNE DES 3 OPTIONS : 1. Mon trajet | 2. Mes passagers | 3. Demandes */}
-          <div className="flex items-center rounded-2xl bg-slate-100/90 p-1 mb-3.5 border border-white/60">
+          <div className="flex items-center rounded-2xl bg-slate-100/90 p-1 border border-white/60">
             {/* 1. Mon trajet (par défaut) */}
             <button
               type="button"
@@ -970,9 +973,10 @@ function TripDetailsContent() {
               )}
             </button>
           </div>
+        </div>
 
-          {/* CONTENU DE L'ONGLET SÉLECTIONNÉ */}
-          <div className="flex-1 overflow-y-auto max-h-[38vh] sm:max-h-[44vh] pr-0.5 space-y-3">
+        {/* CONTENU DE L'ONGLET SÉLECTIONNÉ : SCROLLABLE */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-1 space-y-3">
             {/* ONGLET 1 : DÉTAILS DU TRAJET */}
             {activeTab === "details" && (
               <div className="space-y-3">
@@ -1238,42 +1242,45 @@ function TripDetailsContent() {
               </div>
             )}
           </div>
-        </div>
 
-        {/* BOUTON PRINCIPAL DE NAVIGATION GPS (APPROCHE HYBRIDE : GOOGLE MAPS / WAZE / APPLE PLANS) */}
-        {trip.status !== "cancelled" && (
-          <div className="pt-2">
+        {/* BOUTONS D'ACTION INFÉRIEURS FIXES */}
+        <div
+          className="px-5 pt-2 pb-3 bg-white/95 border-t border-slate-100/90 flex-shrink-0 space-y-2 shadow-2xs"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0.75rem))" }}
+        >
+          {/* BOUTON PRINCIPAL DE NAVIGATION GPS (APPROCHE HYBRIDE : GOOGLE MAPS / WAZE / APPLE PLANS) */}
+          {trip.status !== "cancelled" && (
             <button
               onClick={() => setShowGpsChooser(true)}
-              className="w-full h-12 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2d6cb5]/25 active:scale-[0.98] transition-all cursor-pointer"
+              className="w-full h-11 sm:h-12 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2d6cb5]/25 active:scale-[0.98] transition-all cursor-pointer"
             >
               <Navigation className="h-4 w-4 fill-white" />
               <span>Y aller (Lancer le GPS)</span>
             </button>
+          )}
+
+          {/* BOUTONS D'ACTION INFÉRIEURS : MODIFIER & ANNULER */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Bouton Modifier */}
+            <button
+              onClick={handleOpenEdit}
+              disabled={trip.status === "cancelled" || trip.departureTime < Date.now()}
+              className="h-11 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-[#1b7f80]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Pencil className="h-4 w-4" />
+              <span>Modifier</span>
+            </button>
+
+            {/* Bouton Annuler */}
+            <button
+              onClick={handleCancelTrip}
+              disabled={isActionLoading || trip.status === "cancelled" || trip.departureTime < Date.now()}
+              className="h-11 rounded-2xl glass-card bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Annuler</span>
+            </button>
           </div>
-        )}
-
-        {/* 3. BOUTONS D'ACTION INFÉRIEURS : MODIFIER & ANNULER */}
-        <div className="grid grid-cols-2 gap-3 pt-3 mt-2 border-t border-slate-100/80">
-          {/* Bouton Modifier */}
-          <button
-            onClick={handleOpenEdit}
-            disabled={trip.status === "cancelled" || trip.departureTime < Date.now()}
-            className="h-12 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1b7f80]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Pencil className="h-4 w-4" />
-            <span>Modifier</span>
-          </button>
-
-          {/* Bouton Annuler */}
-          <button
-            onClick={handleCancelTrip}
-            disabled={isActionLoading || trip.status === "cancelled" || trip.departureTime < Date.now()}
-            className="h-12 rounded-2xl glass-card bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
-          >
-            <Trash2 className="h-4 w-4" />
-            <span>Annuler</span>
-          </button>
         </div>
       </div>
 

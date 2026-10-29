@@ -756,34 +756,42 @@ function CreateTripContent() {
             <form onSubmit={handleSubmit} className="space-y-3.5">
               {/* CARTE : DATE & HEURE */}
               <div className="glass-panel rounded-3xl p-4 border border-white/80 shadow-sm space-y-3.5">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Date */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-[#1a3860]">Date</label>
-                    <div className="relative flex items-center">
-                      <Calendar className="absolute left-3.5 h-4 w-4 text-[#2d6cb5] pointer-events-none" />
+                    <label className="block text-xs font-bold text-[#1a3860]">
+                      Date de départ
+                    </label>
+                    <div className="flex items-center gap-2.5 rounded-2xl bg-white/90 border border-slate-200/80 p-2 shadow-xs focus-within:ring-2 focus-within:ring-[#2d6cb5]/30 focus-within:border-[#2d6cb5] transition-all">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#2d6cb5] flex-shrink-0">
+                        <Calendar className="h-4 w-4" />
+                      </div>
                       <input
                         type="date"
                         required
                         min={todayStr}
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
-                        className="w-full rounded-2xl bg-white/80 backdrop-blur-sm border border-slate-200/80 py-2.5 pl-10 pr-2.5 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2d6cb5]/30 focus:border-[#2d6cb5] focus:bg-white shadow-xs transition-all"
+                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
                       />
                     </div>
                   </div>
 
                   {/* Heure */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-[#1a3860]">Heure</label>
-                    <div className="relative flex items-center">
-                      <Clock className="absolute left-3.5 h-4 w-4 text-[#2d6cb5] pointer-events-none" />
+                    <label className="block text-xs font-bold text-[#1a3860]">
+                      Heure de départ
+                    </label>
+                    <div className="flex items-center gap-2.5 rounded-2xl bg-white/90 border border-slate-200/80 p-2 shadow-xs focus-within:ring-2 focus-within:ring-[#2d6cb5]/30 focus-within:border-[#2d6cb5] transition-all">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-[#138872] flex-shrink-0">
+                        <Clock className="h-4 w-4" />
+                      </div>
                       <input
                         type="time"
                         required
                         value={time}
                         onChange={(e) => setTime(e.target.value)}
-                        className="w-full rounded-2xl bg-white/80 backdrop-blur-sm border border-slate-200/80 py-2.5 pl-10 pr-2.5 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2d6cb5]/30 focus:border-[#2d6cb5] focus:bg-white shadow-xs transition-all"
+                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
                       />
                     </div>
                   </div>
