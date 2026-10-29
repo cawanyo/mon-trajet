@@ -161,10 +161,10 @@ function RideResultsContent() {
     // 1. Filtrer les trajets valides
     const filtered = availableTrips
       .filter((trip) => {
-        // Exclure les trajets passés ou sans assez de places
-        if (trip.departureTime < now) return false;
+        // Exclure les trajets terminés, annulés, ou non démarrés 45 min après l'heure prévue
+        if (trip.status === "completed" || trip.status === "cancelled") return false;
+        if (trip.status === "planned" && now > trip.departureTime + 45 * 60 * 1000) return false;
         if (trip.availableSeats < requestedSeats) return false;
-        if (trip.status === "cancelled") return false;
 
         // Filtrer par date si spécifiée
         if (searchDate) {

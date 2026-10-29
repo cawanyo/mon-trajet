@@ -64,24 +64,34 @@ function TripsContent() {
     return `${day.charAt(0).toUpperCase() + day.slice(1)} à ${time}`;
   };
 
-  // Filtrage des trajets Conducteur : heure dépassée = directement passé et inactif
+  // Seuil d'annulation automatique : si non démarré 45 minutes après l'heure prévue
+  const AUTO_CANCEL_THRESHOLD_MS = 45 * 60 * 1000;
+
+  // Filtrage des trajets Conducteur :
+  // - "Actif" : en cours (status === "active") OU planifié et non auto-annulé (< 45min après départ)
+  // - "Passés" : uniquement les trajets terminés (status === "completed")
+  // - "Annulés" : annulés manuellement OU non démarrés 45min après l'heure prévue
   const filteredDriverTrips = useMemo(() => {
     if (!myTrips?.asDriver) return [];
     return myTrips.asDriver.filter((trip) => {
-      const isPast = trip.status === "completed" || trip.departureTime < currentTime;
+      const isAutoCancelled =
+        trip.status === "planned" && currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS;
+      const isCancelled = trip.status === "cancelled" || isAutoCancelled;
+      const isPast = trip.status === "completed";
+
       if (statusFilter === "cancelled") {
-        return trip.status === "cancelled";
+        return isCancelled;
       }
       if (statusFilter === "past") {
-        return trip.status !== "cancelled" && isPast;
+        return isPast;
       }
-      // "active" (par défaut) : actif uniquement si heure non dépassée et non annulé/terminé
-      return trip.status !== "cancelled" && !isPast;
+      // "active" (par défaut) : ni annulé ni passé
+      return !isCancelled && !isPast;
     });
   }, [myTrips?.asDriver, statusFilter, currentTime]);
 
-  // Filtrage des trajets Passager : heure dépassée = directement passé et inactif
-  // Les alertes et demandes non encore acceptées par un conducteur sont gérées dans la page "Demandes"
+  // Filtrage des trajets Passager :
+  // Les réservations suivent le même cycle de vie que le trajet
   const filteredPassengerTrips = useMemo(() => {
     if (!myTrips?.asPassenger) return [];
     return myTrips.asPassenger.filter(({ request, trip }) => {
@@ -90,11 +100,12 @@ function TripsContent() {
         return false;
       }
 
+      const isTripAutoCancelled =
+        trip.status === "planned" && currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS;
       const isCancelled =
-        request.status === "cancelled" || trip?.status === "cancelled";
+        request.status === "cancelled" || trip.status === "cancelled" || isTripAutoCancelled;
 
-      const isPast =
-        trip && (trip.status === "completed" || trip.departureTime < currentTime);
+      const isPast = trip.status === "completed";
 
       if (statusFilter === "cancelled") {
         return isCancelled;
@@ -111,10 +122,14 @@ function TripsContent() {
   const getDriverCount = (filter: "active" | "past" | "cancelled") => {
     if (!myTrips?.asDriver) return 0;
     return myTrips.asDriver.filter((trip) => {
-      const isPast = trip.status === "completed" || trip.departureTime < currentTime;
-      if (filter === "cancelled") return trip.status === "cancelled";
-      if (filter === "past") return trip.status !== "cancelled" && isPast;
-      return trip.status !== "cancelled" && !isPast;
+      const isAutoCancelled =
+        trip.status === "planned" && currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS;
+      const isCancelled = trip.status === "cancelled" || isAutoCancelled;
+      const isPast = trip.status === "completed";
+
+      if (filter === "cancelled") return isCancelled;
+      if (filter === "past") return isPast;
+      return !isCancelled && !isPast;
     }).length;
   };
 
@@ -126,11 +141,12 @@ function TripsContent() {
         return false;
       }
 
+      const isTripAutoCancelled =
+        trip.status === "planned" && currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS;
       const isCancelled =
-        request.status === "cancelled" || trip?.status === "cancelled";
+        request.status === "cancelled" || trip.status === "cancelled" || isTripAutoCancelled;
 
-      const isPast =
-        trip && (trip.status === "completed" || trip.departureTime < currentTime);
+      const isPast = trip.status === "completed";
 
       if (filter === "cancelled") return isCancelled;
       if (filter === "past") return !isCancelled && isPast;
@@ -291,6 +307,10 @@ function TripsContent() {
               {filteredDriverTrips.map((trip) => {
                 const pendingCount = trip.requests.filter((r) => r.status === "pending").length;
                 const acceptedCount = trip.requests.filter((r) => r.status === "accepted").length;
+                const isAutoCancelled =
+                  trip.status === "planned" && currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS;
+                const isCancelled = trip.status === "cancelled" || isAutoCancelled;
+                const isPast = trip.status === "completed";
 
                 return (
                   <div
@@ -306,19 +326,23 @@ function TripsContent() {
 
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold shadow-2xs ${
-                          trip.status === "cancelled"
+                          isCancelled
                             ? "bg-rose-50 text-rose-600 border border-rose-200"
-                            : trip.status === "completed" || trip.departureTime < currentTime
+                            : isPast
                             ? "bg-slate-100 text-slate-600 border border-slate-200"
+                            : trip.status === "active"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
                             : trip.availableSeats > 0
                             ? "bg-[#e6f4f0] text-[#138872] border border-[#cce8e0]"
                             : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}
                       >
-                        {trip.status === "cancelled"
+                        {isCancelled
                           ? "Annulé"
-                          : trip.status === "completed" || trip.departureTime < currentTime
+                          : isPast
                           ? "Passé"
+                          : trip.status === "active"
+                          ? "En cours"
                           : trip.availableSeats > 0
                           ? `${trip.availableSeats} pl. dispo`
                           : "Complet"}
@@ -414,47 +438,64 @@ function TripsContent() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredPassengerTrips.map(({ request, trip, driver }) => (
-                <div
-                  key={request._id}
-                  onClick={() => {
-                    if (trip) {
-                      router.push(`/trips/${trip._id}?requestId=${request._id}`);
-                    } else {
-                      router.push(`/requests/${request._id}`);
-                    }
-                  }}
-                  className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 transition-all cursor-pointer active:scale-[0.99] group"
-                >
-                  {/* En-tête : Date & Statut */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#175276]">
-                      <Clock className="h-3.5 w-3.5 text-[#249e83]" />
-                      <span>
-                        {trip ? formatCompactDate(trip.departureTime) : "Signal de recherche"}
+              {filteredPassengerTrips.map(({ request, trip, driver }) => {
+                const isTripAutoCancelled =
+                  trip &&
+                  trip.status === "planned" &&
+                  currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS;
+                const isCancelled =
+                  request.status === "cancelled" || trip?.status === "cancelled" || Boolean(isTripAutoCancelled);
+                const isPast = trip?.status === "completed";
+
+                return (
+                  <div
+                    key={request._id}
+                    onClick={() => {
+                      if (trip) {
+                        router.push(`/trips/${trip._id}?requestId=${request._id}`);
+                      } else {
+                        router.push(`/requests/${request._id}`);
+                      }
+                    }}
+                    className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 transition-all cursor-pointer active:scale-[0.99] group"
+                  >
+                    {/* En-tête : Date & Statut */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#175276]">
+                        <Clock className="h-3.5 w-3.5 text-[#249e83]" />
+                        <span>
+                          {trip ? formatCompactDate(trip.departureTime) : "Signal de recherche"}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold shadow-2xs ${
+                          isCancelled
+                            ? "bg-rose-50 text-rose-600 border border-rose-200"
+                            : isPast
+                            ? "bg-slate-100 text-slate-600 border border-slate-200"
+                            : trip?.status === "active"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            : request.status === "accepted"
+                            ? "bg-[#e6f4f0] text-[#138872] border border-[#cce8e0]"
+                            : request.status === "pending"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-rose-50 text-rose-600 border border-rose-200"
+                        }`}
+                      >
+                        {isCancelled
+                          ? "Annulé"
+                          : isPast
+                          ? "Passé"
+                          : trip?.status === "active"
+                          ? "En cours"
+                          : request.status === "accepted"
+                          ? "Validé"
+                          : request.status === "pending"
+                          ? "En attente"
+                          : "Refusé"}
                       </span>
                     </div>
-
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold shadow-2xs ${
-                        request.status === "accepted"
-                          ? "bg-[#e6f4f0] text-[#138872] border border-[#cce8e0]"
-                          : request.status === "pending"
-                          ? "bg-amber-50 text-amber-700 border border-amber-200"
-                          : request.status === "cancelled"
-                          ? "bg-slate-100 text-slate-600 border border-slate-200"
-                          : "bg-rose-50 text-rose-600 border border-rose-200"
-                      }`}
-                    >
-                      {request.status === "accepted"
-                        ? "Validé"
-                        : request.status === "pending"
-                        ? "En attente"
-                        : request.status === "cancelled"
-                        ? "Annulé"
-                        : "Refusé"}
-                    </span>
-                  </div>
 
                   {/* Itinéraire épuré */}
                   <div className="space-y-1">
@@ -518,7 +559,8 @@ function TripsContent() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )
         )}

@@ -179,7 +179,7 @@ function TripSuccessContent() {
         {/* Bouton Principal : Voir mon trajet (redirige vers /trips/[id] avec la carte) */}
         <button
           onClick={() => router.push(`/trips/${trip._id}`)}
-          className="w-full h-13 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1b7f80]/25 hover:opacity-95 active:scale-[0.98] transition-all"
+          className="w-full p-2 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1b7f80]/25 hover:opacity-95 active:scale-[0.98] transition-all"
         >
           <span>Voir mon trajet</span>
         </button>
@@ -187,7 +187,7 @@ function TripSuccessContent() {
         {/* Bouton Secondaire : Retour à l'accueil */}
         <button
           onClick={() => router.push("/")}
-          className="w-full h-13 rounded-2xl glass-card bg-white/85 hover:bg-white text-[#1a3860] text-sm font-bold flex items-center justify-center border border-slate-200/70 active:scale-[0.98] transition-all shadow-xs"
+          className="w-full p-2 rounded-2xl glass-card bg-white/85 hover:bg-white text-[#1a3860] text-sm font-bold flex items-center justify-center border border-slate-200/70 active:scale-[0.98] transition-all shadow-xs"
         >
           <span>Retour à l'accueil</span>
         </button>

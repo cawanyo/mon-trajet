@@ -85,9 +85,13 @@ export const listAvailableTrips = query({
     );
 
     const now = Date.now();
-    return enrichedTrips.filter(
-      (t) => t.availableSeats > 0 && t.departureTime >= now
-    );
+    return enrichedTrips.filter((t) => {
+      if (t.availableSeats <= 0) return false;
+      if (t.status === "completed" || t.status === "cancelled") return false;
+      // Considéré comme annulé si le conducteur ne l'a pas démarré 45 minutes après l'heure prévue
+      if (t.status === "planned" && now > t.departureTime + 45 * 60 * 1000) return false;
+      return true;
+    });
   },
 });
 
@@ -318,8 +322,14 @@ export const updateTrip = mutation({
       throw new Error("Seul le conducteur ou un administrateur peut modifier ce trajet.");
     }
 
-    if (trip.departureTime < Date.now()) {
-      throw new Error("Impossible de modifier un trajet dont l'heure est déjà passée.");
+    if (trip.status === "completed") {
+      throw new Error("Impossible de modifier un trajet déjà terminé.");
+    }
+    if (trip.status === "cancelled") {
+      throw new Error("Impossible de modifier un trajet annulé.");
+    }
+    if (trip.status === "planned" && Date.now() > trip.departureTime + 45 * 60 * 1000) {
+      throw new Error("Ce trajet n'a pas été démarré dans les 45 minutes et est considéré comme annulé.");
     }
 
     const updates: Record<string, any> = {};
@@ -377,6 +387,17 @@ export const startTrip = mutation({
     if (!trip) throw new Error("Trajet introuvable.");
     if (trip.driverId !== user._id) {
       throw new Error("Vous n'êtes pas le conducteur de ce trajet.");
+    }
+
+    if (trip.status === "completed") {
+      throw new Error("Ce trajet est déjà terminé.");
+    }
+    if (trip.status === "cancelled") {
+      throw new Error("Ce trajet a été annulé.");
+    }
+    if (trip.status === "planned" && Date.now() > trip.departureTime + 45 * 60 * 1000) {
+      await ctx.db.patch(args.tripId, { status: "cancelled" });
+      throw new Error("Le trajet n'a pas été démarré dans les 45 minutes et a été considéré comme annulé.");
     }
 
     const updates: Record<string, any> = {
@@ -496,17 +517,21 @@ export const getNextUpcomingTrip = query({
     const currentUser = await getAuthenticatedUser(ctx, args.token);
     if (!currentUser) return null;
 
-    // Seuil de recherche : inclut les trajets récents (jusqu'à 1h en arrière) s'ils sont encore planifiés ou en cours
-    const threshold = Date.now() - 60 * 60 * 1000;
+    const now = Date.now();
+    // Seuil de recherche : inclut les trajets récents (jusqu'à 45 min après l'heure prévue pour les trajets non encore démarrés)
+    const threshold = now - 45 * 60 * 1000;
 
     // Trajets en tant que conducteur
     const driverTrips = await ctx.db
       .query("trips")
       .withIndex("by_driver", (q) => q.eq("driverId", currentUser._id))
       .filter((q) =>
-        q.and(
-          q.or(q.eq(q.field("status"), "planned"), q.eq(q.field("status"), "active")),
-          q.gte(q.field("departureTime"), threshold)
+        q.or(
+          q.eq(q.field("status"), "active"),
+          q.and(
+            q.eq(q.field("status"), "planned"),
+            q.gte(q.field("departureTime"), threshold)
+          )
         )
       )
       .collect();
@@ -524,8 +549,8 @@ export const getNextUpcomingTrip = query({
         const trip = await ctx.db.get(req.tripId);
         if (
           trip &&
-          (trip.status === "planned" || trip.status === "active") &&
-          trip.departureTime >= threshold
+          (trip.status === "active" ||
+            (trip.status === "planned" && now <= trip.departureTime + 45 * 60 * 1000))
         ) {
           const driver = await ctx.db.get(trip.driverId);
 
@@ -585,7 +610,9 @@ export const getNextUpcomingTrip = query({
     }
 
     const upcomingDriverTrips = await Promise.all(
-      driverTrips.map(async (t) => {
+      driverTrips
+        .filter((t) => !(t.status === "planned" && now > t.departureTime + 45 * 60 * 1000))
+        .map(async (t) => {
         // Récupération de tous les passagers acceptés pour ce trajet (points d'escale)
         const acceptedRequests = await ctx.db
           .query("requests")

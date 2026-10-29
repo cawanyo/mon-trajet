@@ -244,8 +244,14 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
 
   // Détection de trajet imminent : à 5 minutes ou moins du départ, ou si le conducteur est déjà en route ("active")
   const diffMs = nextTrip ? nextTrip.departureTime - currentTime : Infinity;
+  const isAutoCancelled = Boolean(
+    nextTrip &&
+      nextTrip.status === "planned" &&
+      currentTime > nextTrip.departureTime + 45 * 60 * 1000
+  );
   const isTripImminent = Boolean(
     nextTrip &&
+      !isAutoCancelled &&
       (nextTrip.status === "active" || diffMs <= 5 * 60 * 1000) &&
       nextTrip.status !== "completed" &&
       nextTrip.status !== "cancelled"
@@ -254,6 +260,9 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   // Formatage du décompte affiché à côté du trajet
   const countdown = useMemo(() => {
     if (!nextTrip) return { text: "", isPast: false };
+    if (isAutoCancelled) return { text: "Annulé", isPast: true };
+    if (nextTrip.status === "active") return { text: "En cours", isPast: false };
+
     const diff = nextTrip.departureTime - currentTime;
     if (diff <= 0) {
       const pastSec = Math.floor(Math.abs(diff) / 1000);
@@ -268,7 +277,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       text: `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`,
       isPast: false,
     };
-  }, [nextTrip?.departureTime, currentTime]);
+  }, [nextTrip?.departureTime, nextTrip?.status, currentTime, isAutoCancelled]);
 
   // Calcul du meilleur parcours : ordre de succession optimal des passagers (escales)
   const optimalEscales = useMemo(() => {
@@ -407,8 +416,13 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   const handleLaunchNavigation = async () => {
     if (!nextTrip || nextTrip.role !== "driver") return;
 
-    // Si le départ est prévu dans plus de 15 minutes, demander confirmation avant de démarrer prématurément
     const diffMs = nextTrip.departureTime - Date.now();
+    if (diffMs < -45 * 60 * 1000 && nextTrip.status === "planned") {
+      toast.error("Le délai de 45 minutes est dépassé. Ce trajet est considéré comme annulé.");
+      return;
+    }
+
+    // Si le départ est prévu dans plus de 15 minutes, demander confirmation avant de démarrer prématurément
     if (diffMs > 15 * 60 * 1000 && nextTrip.status !== "active") {
       const min = Math.round(diffMs / 60000);
       const shouldStart = await confirm({

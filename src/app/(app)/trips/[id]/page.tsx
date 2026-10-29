@@ -127,12 +127,34 @@ function TripDetailsContent() {
 
   const requestStatus = passengerRequest?.status || "pending";
 
+  const AUTO_CANCEL_THRESHOLD_MS = 45 * 60 * 1000;
+  const isAutoCancelled = Boolean(
+    trip &&
+      trip.status === "planned" &&
+      currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS
+  );
+  const isTripCancelled = Boolean(trip && (trip.status === "cancelled" || isAutoCancelled));
+  const isTripCompleted = Boolean(trip && trip.status === "completed");
+  const isTripActive = Boolean(trip && !isTripCancelled && !isTripCompleted);
+
   const departureRelativeText = useMemo(() => {
     if (!trip?.departureTime) return "";
+    if (trip.status === "cancelled" || (trip.status === "planned" && currentTime > trip.departureTime + AUTO_CANCEL_THRESHOLD_MS)) {
+      return "Trajet annulé";
+    }
+    if (trip.status === "completed") {
+      return "Trajet terminé";
+    }
+    if (trip.status === "active") {
+      return "Trajet en cours";
+    }
     const diffMs = trip.departureTime - currentTime;
     const diffMin = Math.round(diffMs / 60000);
     if (diffMin > 0 && diffMin <= 60) {
       return `Départ dans ${diffMin} min`;
+    }
+    if (diffMin < 0 && diffMin >= -45) {
+      return `Départ prévu il y a ${Math.abs(diffMin)} min`;
     }
     if (diffMin > 60 && diffMin <= 120) {
       const h = Math.floor(diffMin / 60);
@@ -145,7 +167,7 @@ function TripDetailsContent() {
       return `Départ à ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
     }
     return `Départ ${d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} à ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
-  }, [trip?.departureTime, currentTime]);
+  }, [trip?.departureTime, trip?.status, currentTime]);
 
   // Onglet sélectionné pour le conducteur (1. Mon trajet, 2. Mes passagers, 3. Demandes)
   const [activeTab, setActiveTab] = useState<"details" | "passengers" | "requests">("details");
@@ -1025,27 +1047,33 @@ function TripDetailsContent() {
 
                   <span
                     className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold shadow-xs ${
-                      trip.status === "cancelled"
+                      isTripCancelled
                         ? "bg-rose-50 text-rose-600 border border-rose-200"
-                        : trip.departureTime < Date.now() || trip.status === "completed"
+                        : isTripCompleted
                         ? "bg-slate-100 text-slate-600 border border-slate-200"
+                        : trip.status === "active"
+                        ? "bg-blue-50 text-blue-700 border border-blue-200"
                         : "bg-[#e6f4f0]/90 text-[#138872] border border-[#cce8e0]/80"
                     }`}
                   >
                     <span
                       className={`h-2 w-2 rounded-full ${
-                        trip.status === "cancelled"
+                        isTripCancelled
                           ? "bg-rose-500"
-                          : trip.departureTime < Date.now() || trip.status === "completed"
+                          : isTripCompleted
                           ? "bg-slate-400"
+                          : trip.status === "active"
+                          ? "bg-blue-500 animate-pulse"
                           : "bg-[#138872]"
                       }`}
                     />
                     <span>
-                      {trip.status === "cancelled"
+                      {isTripCancelled
                         ? "Annulé"
-                        : trip.departureTime < Date.now() || trip.status === "completed"
+                        : isTripCompleted
                         ? "Passé"
+                        : trip.status === "active"
+                        ? "En cours"
                         : trip.availableSeats > 0
                         ? "Disponible"
                         : "Complet"}
@@ -1252,7 +1280,7 @@ function TripDetailsContent() {
           style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0.75rem))" }}
         >
           {/* BOUTON PRINCIPAL DE NAVIGATION GPS (APPROCHE HYBRIDE : GOOGLE MAPS / WAZE / APPLE PLANS) */}
-          {trip.status !== "cancelled" && (
+          {!isTripCancelled && !isTripCompleted && (
             <button
               onClick={() => setShowGpsChooser(true)}
               className="w-full h-11 sm:h-12 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2d6cb5]/25 active:scale-[0.98] transition-all cursor-pointer"
@@ -1267,7 +1295,7 @@ function TripDetailsContent() {
             {/* Bouton Modifier */}
             <button
               onClick={handleOpenEdit}
-              disabled={trip.status === "cancelled" || trip.departureTime < Date.now()}
+              disabled={isTripCancelled || isTripCompleted}
               className="h-11 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-[#1b7f80]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Pencil className="h-4 w-4" />
@@ -1277,7 +1305,7 @@ function TripDetailsContent() {
             {/* Bouton Annuler */}
             <button
               onClick={handleCancelTrip}
-              disabled={isActionLoading || trip.status === "cancelled" || trip.departureTime < Date.now()}
+              disabled={isActionLoading || isTripCancelled || isTripCompleted}
               className="h-11 rounded-2xl glass-card bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
             >
               <Trash2 className="h-4 w-4" />
@@ -1646,6 +1674,10 @@ function TripDetailsContent() {
           onOpenInApp={async () => {
             if (isDriver && trip.status === "planned") {
               const diffMs = trip.departureTime - Date.now();
+              if (diffMs < -45 * 60 * 1000) {
+                toast.error("Le délai de 45 minutes est dépassé. Ce trajet est considéré comme annulé.");
+                return;
+              }
               let shouldStart = true;
               if (diffMs > 15 * 60 * 1000) {
                 const min = Math.round(diffMs / 60000);
