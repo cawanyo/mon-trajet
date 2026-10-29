@@ -48,7 +48,7 @@ export default function WelcomeOnboardingPage() {
   const slide = slides[currentSlide];
 
   return (
-    <div className="relative h-screen w-full overflow-hidden select-none bg-slate-950">
+    <div className="relative h-dvh w-full overflow-hidden select-none bg-slate-950">
       {/* 1. IMAGE D'ARRIÈRE-PLAN GÉO-RÉALISTE ET DÉGRADÉS */}
       <div
         className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-105"
@@ -60,11 +60,17 @@ export default function WelcomeOnboardingPage() {
       {/* Voile sombre et dégradé cinématique pour contraster le texte blanc */}
       <div className="absolute inset-0 bg-gradient-to-b from-sky-950/70 via-slate-950/40 to-slate-950/90 pointer-events-none" />
 
-      {/* 2. CONTENU PRINCIPAL MOBILE */}
-      <div className="relative z-10 flex h-full flex-col justify-between px-6 pt-12 pb-8 max-w-sm mx-auto">
+      {/* 2. CONTENU PRINCIPAL MOBILE SANS DÉCALAGE VERS LE BAS */}
+      <div
+        className="relative z-10 flex h-full flex-col justify-between px-6 max-w-sm mx-auto"
+        style={{
+          paddingTop: "max(1.25rem, env(safe-area-inset-top, 1.25rem))",
+          paddingBottom: "max(1.25rem, env(safe-area-inset-bottom, 1.25rem))",
+        }}
+      >
         {/* En-tête : Nouveau Logo Mon Trajet & Textes */}
-        <div className="flex flex-col items-center text-center pt-4">
-          <div className="mb-4">
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-3">
             <MonTrajetLogo variant="light" size="lg" showText={false} />
           </div>
 
@@ -79,7 +85,7 @@ export default function WelcomeOnboardingPage() {
           </h2>
 
           {/* Phrase d'accroche */}
-          <p className="mt-3 text-xs sm:text-sm text-slate-100/90 max-w-[260px] leading-relaxed drop-shadow font-medium">
+          <p className="mt-2 text-xs sm:text-sm text-slate-100/90 max-w-[260px] leading-relaxed drop-shadow font-medium">
             {slide.description}
           </p>
         </div>

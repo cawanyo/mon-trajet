@@ -59,7 +59,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-sky-100 via-sky-50 to-white px-6 py-8 select-none">
+    <div
+      className="relative min-h-dvh w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-sky-100 via-sky-50 to-white px-6 select-none"
+      style={{
+        paddingTop: "max(1.25rem, env(safe-area-inset-top, 1.25rem))",
+        paddingBottom: "max(1.25rem, env(safe-area-inset-bottom, 1.25rem))",
+      }}
+    >
       {/* Halos lumineux d'ambiance pour l'effet Glassmorphism */}
       <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-sky-300/30 blur-3xl pointer-events-none" />
       <div className="absolute top-1/3 -right-20 h-80 w-80 rounded-full bg-blue-200/40 blur-3xl pointer-events-none" />

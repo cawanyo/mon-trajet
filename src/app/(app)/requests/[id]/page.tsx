@@ -462,13 +462,16 @@ function RequestDetailsContent() {
   const addedRelativeText = formatRelativeAdded(request.createdAt, currentTime);
 
   return (
-    <div className="relative min-h-screen bg-[#f4f7fb] text-slate-800 pb-24 select-none overflow-x-hidden">
+    <div className="relative min-h-dvh bg-[#f4f7fb] text-slate-800 pb-24 select-none overflow-x-hidden">
       {/* Halos d'ambiance glassy subtils */}
       <div className="pointer-events-none fixed -top-20 -right-20 h-80 w-80 rounded-full bg-teal-200/20 blur-3xl z-0" />
       <div className="pointer-events-none fixed top-1/3 -left-20 h-72 w-72 rounded-full bg-blue-100/30 blur-3xl z-0" />
 
       {/* 1. EN-TÊTE FIXE GLASSY */}
-      <div className="sticky top-0 z-30 glass-panel bg-white/85 backdrop-blur-2xl border-b border-white/80 px-4 pt-4 pb-3 shadow-2xs">
+      <div
+        className="sticky top-0 z-30 glass-panel bg-white/85 backdrop-blur-2xl border-b border-white/80 px-4 pb-3 shadow-2xs"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 1rem))" }}
+      >
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button

@@ -139,13 +139,16 @@ function TripsContent() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#f4f7fb] text-slate-800 pb-24 select-none overflow-x-hidden">
+    <div className="relative min-h-dvh bg-[#f4f7fb] text-slate-800 pb-24 select-none overflow-x-hidden">
       {/* Halos d'ambiance glassy */}
       <div className="pointer-events-none fixed -top-24 -right-24 h-96 w-96 rounded-full bg-teal-200/30 blur-3xl z-0" />
       <div className="pointer-events-none fixed top-1/2 -left-28 h-80 w-80 rounded-full bg-blue-100/40 blur-3xl z-0" />
 
       {/* En-tête Glassy fixe */}
-      <div className="sticky top-0 z-30 glass-panel bg-white/80 backdrop-blur-2xl border-b border-white/80 px-4 pt-4 pb-3 shadow-xs">
+      <div
+        className="sticky top-0 z-30 glass-panel bg-white/80 backdrop-blur-2xl border-b border-white/80 px-4 pb-3 shadow-xs"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 1rem))" }}
+      >
         <div className="max-w-md mx-auto">
           <div className="flex items-center justify-between">
             <div>

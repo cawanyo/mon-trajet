@@ -50,8 +50,11 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 text-slate-900 dark:text-white">
-      <div className="bg-white dark:bg-slate-900 p-4 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+    <div className="min-h-dvh bg-slate-50 dark:bg-slate-950 pb-24 text-slate-900 dark:text-white">
+      <div
+        className="bg-white dark:bg-slate-900 px-4 pb-4 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 1rem))" }}
+      >
         <div>
           <h1 className="text-xl font-bold">Alertes & Notifications</h1>
           <p className="text-xs text-slate-500">Mises à jour de vos trajets et de votre compte</p>

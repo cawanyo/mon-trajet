@@ -91,7 +91,10 @@ export default function ManagerValidationPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] pb-24 p-4 max-w-lg mx-auto text-slate-800 space-y-5">
+    <div
+      className="min-h-dvh bg-[#f8fafc] pb-24 p-4 max-w-lg mx-auto text-slate-800 space-y-5"
+      style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 1rem))" }}
+    >
       {/* 1. SECTION ADRESSE DE L'ÉGLISE (CONFIGURÉE PAR LE MANAGER) */}
       <div className="rounded-3xl bg-white p-4 sm:p-5 shadow-xs border border-slate-200/80 space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">

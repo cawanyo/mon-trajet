@@ -50,7 +50,7 @@ export default function ProfilePage() {
   const avatarUrl = user?.avatarUrl;
 
   return (
-    <div className="relative min-h-screen bg-[#f4f7fb] text-slate-800 pb-24 select-none overflow-x-hidden">
+    <div className="relative min-h-dvh bg-[#f4f7fb] text-slate-800 pb-24 select-none overflow-x-hidden">
       {/* 1. SECTION SUPÉRIEURE : BANNIÈRE PAYSAGE & AVATAR (CONFORME À LA MAQUETTE) */}
       <div className="relative h-64 w-full overflow-hidden bg-slate-900">
         {/* Image de fond : Paysage / coucher de soleil vers l'église */}

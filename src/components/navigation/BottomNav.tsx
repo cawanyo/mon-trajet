@@ -59,7 +59,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   ];
 
   return (
-    <nav className="fixed bottom-4 left-4 right-4 max-w-md mx-auto z-40 rounded-[28px] sm:rounded-full glass-panel px-2 py-1 transition-all">
+    <nav
+      className="fixed left-4 right-4 max-w-md mx-auto z-40 rounded-[28px] sm:rounded-full glass-panel px-2 py-1 transition-all"
+      style={{
+        bottom: "max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))",
+      }}
+    >
       <div className="flex h-14 items-center justify-around">
         {navItems.map((item) => {
           const Icon = item.icon;

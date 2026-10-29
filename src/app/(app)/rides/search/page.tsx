@@ -106,28 +106,50 @@ function RideSearchContent() {
       return;
     }
     setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setDepartureCoords({ lat: latitude, lng: longitude });
-        try {
-          const realAddress = await reverseGeocode(latitude, longitude);
-          setDepartureAddress(realAddress);
-        } catch {
-          // Évite "Ma position"
-        }
-        setIsLocating(false);
 
-        if (mapRef.current) {
-          const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
-          map?.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
-        }
+    const applyPosition = async (latitude: number, longitude: number) => {
+      setDepartureCoords({ lat: latitude, lng: longitude });
+      try {
+        const realAddress = await reverseGeocode(latitude, longitude);
+        setDepartureAddress(realAddress);
+      } catch {
+        // Évite "Ma position"
+      }
+      setIsLocating(false);
+
+      if (mapRef.current) {
+        const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
+        map?.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
+      }
+      toast.success("Position détectée !");
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        applyPosition(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
-        setIsLocating(false);
-        toast.error("Impossible d'accéder au GPS : " + err.message);
+        if (err.code === 1) {
+          setIsLocating(false);
+          toast.error(
+            "Position refusée. Sur iPhone : appuyez sur 'aA' dans Safari > Réglages du site web > Emplacement > Autoriser."
+          );
+          return;
+        }
+
+        // Repli vers précision standard (WiFi / antennes relais)
+        navigator.geolocation.getCurrentPosition(
+          (pos2) => {
+            applyPosition(pos2.coords.latitude, pos2.coords.longitude);
+          },
+          () => {
+            setIsLocating(false);
+            toast.error("Impossible de récupérer votre position. Vérifiez vos réglages GPS.");
+          },
+          { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 6000 }
     );
   };
 
@@ -349,7 +371,10 @@ function RideSearchContent() {
       </div>
 
       {/* Bouton retour circulaire en haut à gauche */}
-      <div className="absolute top-4 left-4 z-20">
+      <div
+        className="absolute left-4 z-20"
+        style={{ top: "max(1rem, env(safe-area-inset-top, 1rem))" }}
+      >
         <button
           onClick={() => router.push("/")}
           className="flex h-11 w-11 items-center justify-center rounded-full glass-card bg-white/90 backdrop-blur-xl text-slate-700 shadow-md border border-white/90 hover:bg-white active:scale-95 transition-all"
@@ -371,7 +396,10 @@ function RideSearchContent() {
       </div>
 
       {/* 2. TIROIR GLASSY FLOTTANT INFÉRIEUR */}
-      <div className="absolute bottom-2 left-2 right-2 max-w-md mx-auto z-30">
+      <div
+        className="absolute left-2 right-2 max-w-md mx-auto z-30"
+        style={{ bottom: "max(0.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))" }}
+      >
         <div className="rounded-[32px] glass-panel bg-white/90 backdrop-blur-2xl border border-white/90 p-4 pt-2.5 pb-4 shadow-2xl space-y-3">
           {/* Poignée du tiroir */}
           <div className="w-10 h-1 bg-slate-300/80 rounded-full mx-auto" />

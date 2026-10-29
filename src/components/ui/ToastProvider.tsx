@@ -109,7 +109,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
       {/* Floating Bottom Toasts (above mobile nav bar) */}
       <div
-        className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[999] w-[calc(100%-2rem)] max-w-sm pointer-events-none flex flex-col gap-2 items-center"
+        className="fixed left-1/2 -translate-x-1/2 z-[999] w-[calc(100%-2rem)] max-w-sm pointer-events-none flex flex-col gap-2 items-center"
+        style={{
+          bottom: "max(5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem))",
+        }}
         aria-live="polite"
       >
         {toasts.map((t) => {
@@ -166,7 +169,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           />
 
           {/* Action Sheet at bottom */}
-          <div className="relative z-10 w-full max-w-sm px-4 pb-6 pt-2 sm:p-5 pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div
+            className="relative z-10 w-full max-w-sm px-4 pt-2 sm:p-5 pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-200"
+            style={{
+              paddingBottom: "max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem))",
+            }}
+          >
             <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 space-y-4">
               <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto sm:hidden" />
 

@@ -218,6 +218,13 @@ function CreateTripContent() {
         applyLocation(pos.coords.latitude, pos.coords.longitude);
       },
       (err1) => {
+        if (err1.code === 1) {
+          setIsLocating(false);
+          toast.error(
+            "Position refusée. Sur iPhone : appuyez sur 'aA' dans Safari > Réglages du site web > Emplacement > Autoriser."
+          );
+          return;
+        }
         console.warn("Échec haute précision GPS, tentative standard :", err1.message);
         navigator.geolocation.getCurrentPosition(
           (pos) => {
@@ -461,12 +468,12 @@ function CreateTripContent() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#f4f7fb] text-slate-800 select-none overflow-hidden">
+    <div className="relative min-h-dvh bg-[#f4f7fb] text-slate-800 select-none overflow-hidden">
       {/* ============================================================ */}
       {/* ÉTAPE 1 : CARTE INTERACTIVE, ITINÉRAIRE & CERCLE DE DÉTOUR    */}
       {/* ============================================================ */}
       {step === 1 && (
-        <div className="relative h-[100dvh] w-full overflow-hidden bg-slate-100">
+        <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
           {/* CARTE PLEIN ÉCRAN IMMERSIVE */}
           <Map
             ref={mapRef}
@@ -525,7 +532,10 @@ function CreateTripContent() {
           </Map>
 
           {/* BARRE SUPÉRIEURE FLOTTANTE GLASSY */}
-          <div className="absolute top-3 inset-x-3 max-w-md mx-auto z-20">
+          <div
+            className="absolute inset-x-3 max-w-md mx-auto z-20"
+            style={{ top: "max(0.75rem, env(safe-area-inset-top, 0.75rem))" }}
+          >
             <div className="flex items-center justify-between glass-panel rounded-3xl px-3.5 py-2.5 shadow-lg border border-white/80">
               <div className="flex items-center gap-2.5">
                 <button
@@ -559,7 +569,10 @@ function CreateTripContent() {
           </div>
 
           {/* TIROIR FLOTTANT INFÉRIEUR GLASSY (DÉPART, DESTINATION, DÉTOUR, CONTINUER) */}
-          <div className="absolute bottom-3 inset-x-3 max-w-md mx-auto z-20">
+          <div
+            className="absolute inset-x-3 max-w-md mx-auto z-20"
+            style={{ bottom: "max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))" }}
+          >
             <div className="glass-panel rounded-3xl p-4 shadow-2xl border border-white/80 space-y-3 overflow-visible">
               {/* 1. Lieu de départ */}
               <div className="space-y-1">
@@ -676,14 +689,17 @@ function CreateTripContent() {
       {/* ÉTAPE 2 : DATE, HEURE, PLACES, NOTE & PUBLICATION              */}
       {/* ============================================================ */}
       {step === 2 && (
-        <div className="relative min-h-screen pb-16 overflow-hidden">
+        <div className="relative min-h-dvh pb-16 overflow-hidden">
           {/* Halos d'ambiance pour accentuer l'effet de réfraction du verre dépoli */}
           <div className="pointer-events-none fixed -top-24 -right-24 h-96 w-96 rounded-full bg-blue-200/35 blur-3xl" />
           <div className="pointer-events-none fixed top-1/2 -left-28 h-80 w-80 rounded-full bg-teal-100/40 blur-3xl" />
           <div className="pointer-events-none fixed -bottom-20 right-10 h-72 w-72 rounded-full bg-indigo-100/25 blur-3xl" />
 
           {/* Barre supérieure Glassmorphism */}
-          <div className="sticky top-0 z-30 flex items-center justify-between glass-panel px-4 py-3 border-b border-white/60">
+          <div
+            className="sticky top-0 z-30 flex items-center justify-between glass-panel px-4 py-3 border-b border-white/60"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top, 0.75rem))" }}
+          >
             <div className="flex items-center gap-3">
               <button
                 type="button"

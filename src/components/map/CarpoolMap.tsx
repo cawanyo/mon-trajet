@@ -161,32 +161,76 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   });
 
   // Demande de géolocalisation native à l'ouverture s'il accepte
-  const requestGeolocation = () => {
-    if (typeof window !== "undefined" && "geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const loc = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          };
-          setUserLocation(loc);
-          // Centraliser directement la carte sur la localisation de l'utilisateur
-          setViewState({
-            latitude: loc.lat,
-            longitude: loc.lng,
-            zoom: 13.8,
-          });
-        },
-        (err) => {
-          console.log("Géolocalisation refusée ou non disponible :", err.message);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-      );
+  const requestGeolocation = (isUserClick = false) => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      if (isUserClick) {
+        toast.error("La géolocalisation n'est pas supportée sur ce navigateur.");
+      }
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        setUserLocation(loc);
+        // Centraliser directement la carte sur la localisation de l'utilisateur
+        setViewState({
+          latitude: loc.lat,
+          longitude: loc.lng,
+          zoom: 13.8,
+        });
+        if (isUserClick) {
+          toast.success("Position actualisée !");
+        }
+      },
+      (err) => {
+        console.warn("Échec GPS haute précision :", err.code, err.message);
+        // Si permission expressément refusée
+        if (err.code === 1) {
+          if (isUserClick) {
+            toast.error(
+              "Position refusée. Sur iPhone : appuyez sur 'aA' dans Safari > Réglages du site web > Emplacement > Autoriser."
+            );
+          }
+          return;
+        }
+
+        // Sinon (timeout, position indisponible), repli vers mode standard (cellulaire/wifi)
+        navigator.geolocation.getCurrentPosition(
+          (pos2) => {
+            const loc2 = {
+              lat: pos2.coords.latitude,
+              lng: pos2.coords.longitude,
+            };
+            setUserLocation(loc2);
+            setViewState({
+              latitude: loc2.lat,
+              longitude: loc2.lng,
+              zoom: 13.8,
+            });
+            if (isUserClick) {
+              toast.success("Position détectée !");
+            }
+          },
+          () => {
+            if (isUserClick) {
+              toast.error(
+                "Signal GPS introuvable. Vérifiez que la localisation est activée dans vos Réglages iPhone."
+              );
+            }
+          },
+          { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
+        );
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+    );
   };
 
   useEffect(() => {
-    requestGeolocation();
+    requestGeolocation(false);
   }, []);
 
   const mapRef = useRef<any>(null);
@@ -577,7 +621,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   };
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-slate-100 select-none">
+    <div className="relative h-dvh w-full overflow-hidden bg-slate-100 select-none">
       {/* 1. CARTE INTERACTIVE TEMPS RÉEL (STYLE POSITRON MINIMALISTE IDENTIQUE À L'IMAGE) */}
       <Map
         ref={mapRef}
@@ -881,7 +925,10 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       </Map>
 
       {/* BOUTON RECENTRER SUR MA POSITION */}
-      <div className="absolute right-4 top-24 z-20">
+      <div
+        className="absolute right-4 z-20"
+        style={{ top: "calc(max(0.75rem, env(safe-area-inset-top, 0.75rem)) + 4.25rem)" }}
+      >
         <button
           onClick={() => {
             if (userLocation) {
@@ -891,7 +938,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                 zoom: 14.5,
               });
             } else {
-              requestGeolocation();
+              requestGeolocation(true);
             }
           }}
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-700 shadow-md border border-[#eef2f6] hover:bg-slate-50 active:scale-95 transition-all"
@@ -902,7 +949,10 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       </div>
 
       {/* 2. EN-TÊTE SUPÉRIEURE FLOTTANTE : "Autour de moi" + FILTRE (STYLE GLASSY DU TEMPLATE) */}
-      <div className="absolute top-4 inset-x-4 max-w-md mx-auto z-20">
+      <div
+        className="absolute inset-x-4 max-w-md mx-auto z-20"
+        style={{ top: "max(0.75rem, env(safe-area-inset-top, 0.75rem))" }}
+      >
         <div className="flex items-center justify-between rounded-3xl glass-panel px-4 py-3 shadow-[0_8px_30px_rgba(20,40,75,0.06)]">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e6f4f0] text-[#38917d]">
@@ -987,7 +1037,10 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       </div>
 
       {/* 3. FICHE FLOTTANTE DU TEMPLATE (STYLE FROSTED GLASS / VERRE POLI) */}
-      <div className="fixed bottom-[90px] left-4 right-4 max-w-md mx-auto z-30">
+      <div
+        className="fixed left-4 right-4 max-w-md mx-auto z-30"
+        style={{ bottom: "max(5.5rem, calc(env(safe-area-inset-bottom, 0px) + 5rem))" }}
+      >
         <div className="rounded-[32px] glass-panel p-4 pt-2.5 space-y-3">
           {/* Poignée de tiroir / Grab Bar */}
           <div className="w-10 h-1 bg-slate-300/80 rounded-full mx-auto" />

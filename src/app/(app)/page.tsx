@@ -70,7 +70,7 @@ export default function HomeMapPage() {
   };
 
   return (
-    <main className="relative min-h-screen w-full">
+    <main className="relative h-dvh w-full overflow-hidden">
       <CarpoolMap
         trips={(trips as any) ?? []}
         needs={(needs as any) ?? []}

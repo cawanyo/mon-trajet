@@ -323,13 +323,16 @@ function RideResultsContent() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#f0f4f8] text-slate-800 pb-16 select-none overflow-x-hidden">
+    <div className="relative min-h-dvh bg-[#f0f4f8] text-slate-800 pb-16 select-none overflow-x-hidden">
       {/* Halos d'ambiance glassy subtils */}
       <div className="pointer-events-none fixed -top-24 -right-24 h-96 w-96 rounded-full bg-teal-200/25 blur-3xl z-0" />
       <div className="pointer-events-none fixed top-1/2 -left-28 h-80 w-80 rounded-full bg-blue-100/35 blur-3xl z-0" />
 
       {/* 1. EN-TÊTE FIXE GLASSY ÉPURÉ */}
-      <div className="sticky top-0 z-30 glass-panel bg-white/75 backdrop-blur-2xl border-b border-white/75 px-4 pt-3.5 pb-2.5 shadow-2xs">
+      <div
+        className="sticky top-0 z-30 glass-panel bg-white/75 backdrop-blur-2xl border-b border-white/75 px-4 pb-2.5 shadow-2xs"
+        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top, 0.75rem))" }}
+      >
         <div className="max-w-md mx-auto space-y-2.5">
           {/* Ligne titre avec retour */}
           <div className="flex items-center gap-3">
