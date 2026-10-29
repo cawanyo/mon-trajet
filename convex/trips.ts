@@ -1,6 +1,35 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 import { getAuthenticatedUser } from "./auth";
+
+/**
+ * Recalcule et synchronise le nombre de places disponibles sur un trajet :
+ * - Les places sont réservées dès qu'une demande est soumise (statut 'pending' ou 'accepted').
+ * - Si le conducteur refuse la demande ('rejected') ou si le passager l'annule ('cancelled'),
+ *   la place est immédiatement libérée.
+ */
+export async function syncTripAvailableSeats(ctx: any, tripId: Id<"trips">): Promise<number> {
+  const trip = await ctx.db.get(tripId);
+  if (!trip) return 0;
+
+  const requests = await ctx.db
+    .query("requests")
+    .withIndex("by_trip", (q: any) => q.eq("tripId", tripId))
+    .collect();
+
+  const reservedSeats = requests
+    .filter((r: any) => r.status === "accepted" || r.status === "pending")
+    .reduce((sum: number, r: any) => sum + (r.seatsRequested || 1), 0);
+
+  const newAvailableSeats = Math.max(0, trip.totalSeats - reservedSeats);
+
+  if (trip.availableSeats !== newAvailableSeats) {
+    await ctx.db.patch(tripId, { availableSeats: newAvailableSeats });
+  }
+
+  return newAvailableSeats;
+}
 
 // 1. Proposer un trajet (Conducteur)
 export const createTrip = mutation({
@@ -69,8 +98,19 @@ export const listAvailableTrips = query({
     const enrichedTrips = await Promise.all(
       trips.map(async (trip) => {
         const driver = await ctx.db.get(trip.driverId);
+        const requests = await ctx.db
+          .query("requests")
+          .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+          .collect();
+
+        const reservedSeats = requests
+          .filter((r) => r.status === "accepted" || r.status === "pending")
+          .reduce((sum, r) => sum + (r.seatsRequested || 1), 0);
+        const availableSeats = Math.max(0, trip.totalSeats - reservedSeats);
+
         return {
           ...trip,
+          availableSeats,
           driver: driver
             ? {
                 _id: driver._id,
@@ -114,6 +154,11 @@ export const getTripDetails = query({
       .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
       .collect();
 
+    const reservedSeats = requests
+      .filter((r) => r.status === "accepted" || r.status === "pending")
+      .reduce((sum, r) => sum + (r.seatsRequested || 1), 0);
+    const availableSeats = Math.max(0, trip.totalSeats - reservedSeats);
+
     const isDriver = currentUser && currentUser._id === trip.driverId;
     const isAcceptedPassenger =
       currentUser &&
@@ -149,6 +194,7 @@ export const getTripDetails = query({
 
     return {
       ...trip,
+      availableSeats,
       driver: {
         _id: driver._id,
         name: driver.name,
@@ -191,6 +237,11 @@ export const listMyTrips = query({
           .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
           .collect();
 
+        const reservedSeats = requests
+          .filter((r) => r.status === "accepted" || r.status === "pending")
+          .reduce((sum, r) => sum + (r.seatsRequested || 1), 0);
+        const availableSeats = Math.max(0, trip.totalSeats - reservedSeats);
+
         const enrichedRequests = await Promise.all(
           requests.map(async (req) => {
             const passenger = await ctx.db.get(req.passengerId);
@@ -210,6 +261,7 @@ export const listMyTrips = query({
 
         return {
           ...trip,
+          availableSeats,
           requests: enrichedRequests,
         };
       })
@@ -347,18 +399,18 @@ export const updateTrip = mutation({
         .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
         .collect();
 
-      const acceptedSeats = requests
-        .filter((r) => r.status === "accepted")
-        .reduce((sum, r) => sum + r.seatsRequested, 0);
+      const reservedSeats = requests
+        .filter((r) => r.status === "accepted" || r.status === "pending")
+        .reduce((sum, r) => sum + (r.seatsRequested || 1), 0);
 
-      if (args.totalSeats < acceptedSeats) {
+      if (args.totalSeats < reservedSeats) {
         throw new Error(
-          `Impossible de réduire à ${args.totalSeats} places : ${acceptedSeats} place(s) sont déjà occupées.`
+          `Impossible de réduire à ${args.totalSeats} places : ${reservedSeats} place(s) sont déjà occupées ou demandées.`
         );
       }
 
       updates.totalSeats = args.totalSeats;
-      updates.availableSeats = args.totalSeats - acceptedSeats;
+      updates.availableSeats = Math.max(0, args.totalSeats - reservedSeats);
     }
 
     await ctx.db.patch(args.tripId, updates);
@@ -578,6 +630,15 @@ export const getNextUpcomingTrip = query({
             })
           );
 
+          const allTripRequests = await ctx.db
+            .query("requests")
+            .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+            .collect();
+          const tripReservedSeats = allTripRequests
+            .filter((r) => r.status === "accepted" || r.status === "pending")
+            .reduce((sum, r) => sum + (r.seatsRequested || 1), 0);
+          const dynamicTripAvailableSeats = Math.max(0, trip.totalSeats - tripReservedSeats);
+
           upcomingPassengerTrips.push({
             _id: trip._id,
             role: "passenger" as const,
@@ -586,7 +647,7 @@ export const getNextUpcomingTrip = query({
               ? "Trajet vers l'église"
               : `Trajet vers ${trip.destinationLocation?.address || "l'église"}`,
             departureTime: trip.departureTime,
-            availableSeats: trip.availableSeats,
+            availableSeats: dynamicTripAvailableSeats,
             totalSeats: trip.totalSeats,
             seatsRequested: req.seatsRequested,
             driverId: trip.driverId,
@@ -614,11 +675,16 @@ export const getNextUpcomingTrip = query({
         .filter((t) => !(t.status === "planned" && now > t.departureTime + 45 * 60 * 1000))
         .map(async (t) => {
         // Récupération de tous les passagers acceptés pour ce trajet (points d'escale)
-        const acceptedRequests = await ctx.db
+        const allTripRequests = await ctx.db
           .query("requests")
           .withIndex("by_trip", (q) => q.eq("tripId", t._id))
-          .filter((q) => q.eq(q.field("status"), "accepted"))
           .collect();
+
+        const acceptedRequests = allTripRequests.filter((q) => q.status === "accepted");
+        const tripReservedSeats = allTripRequests
+          .filter((r) => r.status === "accepted" || r.status === "pending")
+          .reduce((sum, r) => sum + (r.seatsRequested || 1), 0);
+        const dynamicTripAvailableSeats = Math.max(0, t.totalSeats - tripReservedSeats);
 
         const escales = await Promise.all(
           acceptedRequests.map(async (req) => {
@@ -645,7 +711,7 @@ export const getNextUpcomingTrip = query({
             ? "Trajet vers l'église"
             : `Trajet vers ${t.destinationLocation?.address || "l'église"}`,
           departureTime: t.departureTime,
-          availableSeats: t.availableSeats,
+          availableSeats: dynamicTripAvailableSeats,
           totalSeats: t.totalSeats,
           seatsRequested: undefined,
           driverName: currentUser.name,

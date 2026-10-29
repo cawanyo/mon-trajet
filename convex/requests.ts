@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthenticatedUser } from "./auth";
+import { syncTripAvailableSeats } from "./trips";
 
 // 1. Créer une demande de place ou un signal de besoin ouvert
 export const createRequest = mutation({
@@ -81,6 +82,9 @@ export const createRequest = mutation({
         note: args.note,
         createdAt: Date.now(),
       });
+
+      // La place demandée n'est plus disponible : mise à jour immédiate
+      await syncTripAvailableSeats(ctx, trip._id);
 
       await ctx.db.insert("notifications", {
         userId: trip.driverId,
@@ -166,19 +170,18 @@ export const respondToRequest = mutation({
       throw new Error("Seul le conducteur peut répondre à cette demande.");
     }
 
+    if (request.status !== "pending") {
+      throw new Error("Cette demande a déjà été traitée ou annulée.");
+    }
+
     if (args.decision === "accepted") {
-      if (trip.availableSeats < request.seatsRequested) {
-        throw new Error("Places restantes insuffisantes.");
-      }
-
-      await ctx.db.patch(trip._id, {
-        availableSeats: trip.availableSeats - request.seatsRequested,
-      });
-
       // Mettre à jour le statut -> DÉBLOQUE LE TÉLÉPHONE
       await ctx.db.patch(request._id, {
         status: "accepted",
       });
+
+      // Synchroniser les places (les places restent réservées)
+      await syncTripAvailableSeats(ctx, trip._id);
 
       // Notifier le passager
       await ctx.db.insert("notifications", {
@@ -191,9 +194,13 @@ export const respondToRequest = mutation({
         createdAt: Date.now(),
       });
     } else {
+      // Le conducteur refuse la demande ("rejected") -> libère immédiatement la place !
       await ctx.db.patch(request._id, {
         status: "rejected",
       });
+
+      // Synchroniser les places (la place est libérée)
+      await syncTripAvailableSeats(ctx, trip._id);
 
       await ctx.db.insert("notifications", {
         userId: request.passengerId,
@@ -233,14 +240,12 @@ export const matchOpenNeedToTrip = mutation({
       throw new Error("Votre véhicule n'a pas assez de places.");
     }
 
-    await ctx.db.patch(trip._id, {
-      availableSeats: trip.availableSeats - request.seatsRequested,
-    });
-
     await ctx.db.patch(request._id, {
       tripId: trip._id,
       status: "accepted",
     });
+
+    await syncTripAvailableSeats(ctx, trip._id);
 
     await ctx.db.insert("notifications", {
       userId: request.passengerId,
@@ -381,26 +386,23 @@ export const cancelPassengerRequest = mutation({
       return { success: true, message: "Demande déjà annulée." };
     }
 
-    const wasAccepted = request.status === "accepted";
+    const wasActive = request.status === "accepted" || request.status === "pending";
 
-    // Si la demande avait été acceptée, libérer immédiatement les places chez le conducteur
-    if (wasAccepted && request.tripId) {
+    // Mettre à jour le statut de la demande à "cancelled"
+    await ctx.db.patch(request._id, {
+      status: "cancelled",
+    });
+
+    // Si la demande était active (en attente ou acceptée), libérer immédiatement les places chez le conducteur
+    if (wasActive && request.tripId) {
+      await syncTripAvailableSeats(ctx, request.tripId);
       const trip = await ctx.db.get(request.tripId);
       if (trip) {
-        const newAvailableSeats = Math.min(
-          trip.totalSeats,
-          trip.availableSeats + request.seatsRequested
-        );
-
-        await ctx.db.patch(trip._id, {
-          availableSeats: newAvailableSeats,
-        });
-
         // Notifier le conducteur du désistement et de la libération des places
         await ctx.db.insert("notifications", {
           userId: trip.driverId,
           title: "Désistement d'un passager",
-          body: `${user.name} a annulé sa réservation (${request.seatsRequested} place${request.seatsRequested > 1 ? "s" : ""} libérée${request.seatsRequested > 1 ? "s" : ""}).`,
+          body: `${user.name} a annulé sa demande (${request.seatsRequested} place${request.seatsRequested > 1 ? "s" : ""} libérée${request.seatsRequested > 1 ? "s" : ""}).`,
           type: "trip_cancelled",
           relatedTripId: trip._id,
           isRead: false,
@@ -408,11 +410,6 @@ export const cancelPassengerRequest = mutation({
         });
       }
     }
-
-    // Mettre à jour le statut de la demande à "cancelled"
-    await ctx.db.patch(request._id, {
-      status: "cancelled",
-    });
 
     return { success: true };
   },
@@ -534,6 +531,11 @@ export const updateRequest = mutation({
     }
 
     await ctx.db.patch(request._id, updates);
+
+    if (request.tripId && (request.status === "pending" || request.status === "accepted")) {
+      await syncTripAvailableSeats(ctx, request.tripId);
+    }
+
     return { success: true };
   },
 });

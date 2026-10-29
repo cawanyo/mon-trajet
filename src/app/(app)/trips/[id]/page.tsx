@@ -80,7 +80,7 @@ function TripDetailsContent() {
   const occupiedSeats = useMemo(() => {
     return (
       trip?.requests
-        ?.filter((r) => r.status === "accepted")
+        ?.filter((r) => r.status === "accepted" || r.status === "pending")
         .reduce((sum, r) => sum + r.seatsRequested, 0) ?? 0
     );
   }, [trip?.requests]);
@@ -1249,7 +1249,7 @@ function TripDetailsContent() {
                             e.stopPropagation();
                             handleRespond(req._id, "accepted");
                           }}
-                          disabled={isActionLoading || trip.availableSeats < req.seatsRequested}
+                          disabled={isActionLoading}
                           className="flex-1 py-2 rounded-xl bg-[#138872] hover:bg-[#0f6c5b] text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50 transition-all shadow-xs"
                         >
                           <Check className="h-3.5 w-3.5" />
@@ -1443,7 +1443,7 @@ function TripDetailsContent() {
                   await handleRespond(selectedRequest._id, "accepted");
                   setSelectedRequest(null);
                 }}
-                disabled={isActionLoading || trip.availableSeats < selectedRequest.seatsRequested}
+                disabled={isActionLoading}
                 className="w-full h-13 rounded-2xl bg-gradient-to-r from-[#1ea27c] via-[#24b087] to-[#2ecc9b] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1ea27c]/25 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {isActionLoading ? (
@@ -1517,7 +1517,7 @@ function TripDetailsContent() {
                   </label>
                   {occupiedSeats > 0 && (
                     <span className="text-[11px] font-semibold text-amber-600">
-                      Min. {occupiedSeats} (déjà réservées)
+                      Min. {occupiedSeats} (déjà réservées / demandées)
                     </span>
                   )}
                 </div>
@@ -1532,7 +1532,7 @@ function TripDetailsContent() {
                         onClick={() => setEditTotalSeats(num)}
                         title={
                           isDisabled
-                            ? `Impossible : ${occupiedSeats} place(s) déjà occupée(s)`
+                            ? `Impossible : ${occupiedSeats} place(s) déjà réservée(s) ou demandée(s)`
                             : `${num} place(s)`
                         }
                         className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -1550,7 +1550,7 @@ function TripDetailsContent() {
                 </div>
                 {occupiedSeats > 0 && (
                   <p className="text-[11px] font-medium text-amber-700 bg-amber-50/80 p-2 rounded-xl border border-amber-200/60">
-                    ⚠️ {occupiedSeats} place(s) déjà occupée(s) par vos passagers acceptés. Vous ne pouvez pas définir un total inférieur à {occupiedSeats}.
+                    ⚠️ {occupiedSeats} place(s) déjà réservée(s) ou demandée(s) par vos passagers. Vous ne pouvez pas définir un total inférieur à {occupiedSeats}.
                   </p>
                 )}
               </div>
