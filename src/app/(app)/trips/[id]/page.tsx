@@ -813,6 +813,9 @@ function TripDetailsContent() {
             destination={trip.destinationLocation}
             waypoints={[]}
             tripId={trip._id}
+            onOpenInApp={() => {
+              router.push("/");
+            }}
           />
         )}
       </div>
@@ -1640,6 +1643,35 @@ function TripDetailsContent() {
           destination={trip.destinationLocation}
           waypoints={optimalAcceptedWaypoints}
           tripId={trip._id}
+          onOpenInApp={async () => {
+            if (isDriver && trip.status === "planned") {
+              const diffMs = trip.departureTime - Date.now();
+              let shouldStart = true;
+              if (diffMs > 15 * 60 * 1000) {
+                const min = Math.round(diffMs / 60000);
+                shouldStart = await confirm({
+                  title: "Démarrage anticipé du trajet",
+                  message: `Le départ est prévu dans ${min} minutes. Souhaitez-vous démarrer le trajet dès maintenant pour vos passagers ?`,
+                  confirmText: "Oui, démarrer",
+                  cancelText: "Ouvrir le GPS seulement",
+                });
+              }
+              if (shouldStart) {
+                try {
+                  await updateTripStatus({
+                    token: token || undefined,
+                    tripId: trip._id,
+                    status: "active",
+                  });
+                  toast.success("Trajet démarré !");
+                } catch (e) {
+                  console.warn("Erreur mise à jour statut actif :", e);
+                }
+              }
+            }
+            // Retour sur l'accueil demandé par l'utilisateur
+            router.push("/");
+          }}
         />
       )}
     </div>

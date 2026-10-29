@@ -93,6 +93,45 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
   return `Point GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
 }
 
+// Géocodage direct robuste : Adresse textuelle -> Coordonnées GPS réelles (lat, lng)
+export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  if (!address || address.trim().length < 2) return null;
+
+  // 1. Essai prioritaire api-adresse.data.gouv.fr (France)
+  try {
+    const res = await fetch(
+      `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address.trim())}&limit=1`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const coords = data.features?.[0]?.geometry?.coordinates;
+      if (coords && coords.length >= 2) {
+        return { lat: coords[1], lng: coords[0] };
+      }
+    }
+  } catch (e) {
+    // Continuer vers fallback
+  }
+
+  // 2. Repli Photon (Komoot OSM)
+  try {
+    const res = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(address.trim())}&limit=1&lang=fr`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const coords = data.features?.[0]?.geometry?.coordinates;
+      if (coords && coords.length >= 2) {
+        return { lat: coords[1], lng: coords[0] };
+      }
+    }
+  } catch (e) {
+    // Continuer vers fallback
+  }
+
+  return null;
+}
+
 // Calcul du meilleur parcours : Succession optimale des points d'escale (passagers)
 // Minimise la distance globale : Départ -> Escale 1 -> Escale 2 -> ... -> Destination
 export function getOptimalWaypointsOrder<T extends { pickupLocation: { lat: number; lng: number } }>(

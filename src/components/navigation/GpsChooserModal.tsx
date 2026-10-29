@@ -17,7 +17,7 @@ interface GpsChooserModalProps {
   destination: GpsLocationPoint;
   waypoints?: GpsLocationPoint[];
   tripId?: string;
-  onOpenInApp?: () => void;
+  onOpenInApp?: (appKey: "google" | "waze" | "apple") => void;
 }
 
 export function getGoogleMapsUrl(
@@ -25,23 +25,30 @@ export function getGoogleMapsUrl(
   destination: GpsLocationPoint,
   waypoints: GpsLocationPoint[] = []
 ): string {
-  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&travelmode=driving`;
+  const originParam = origin.lat && origin.lng ? `${origin.lat},${origin.lng}` : encodeURIComponent(origin.address || "");
+  const destParam = destination.lat && destination.lng ? `${destination.lat},${destination.lng}` : encodeURIComponent(destination.address || "");
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${destParam}&travelmode=driving`;
   if (waypoints.length > 0) {
-    const wpStr = waypoints.map((w) => `${w.lat},${w.lng}`).join("|");
+    const wpStr = waypoints.map((w) => (w.lat && w.lng ? `${w.lat},${w.lng}` : encodeURIComponent(w.address || ""))).join("|");
     url += `&waypoints=${encodeURIComponent(wpStr)}`;
   }
   return url;
 }
 
 export function getWazeUrl(target: GpsLocationPoint): string {
-  return `https://waze.com/ul?ll=${target.lat},${target.lng}&navigate=yes`;
+  if (target.lat && target.lng) {
+    return `https://waze.com/ul?ll=${target.lat},${target.lng}&navigate=yes`;
+  }
+  return `https://waze.com/ul?q=${encodeURIComponent(target.address || "")}&navigate=yes`;
 }
 
 export function getAppleMapsUrl(
   origin: GpsLocationPoint,
   destination: GpsLocationPoint
 ): string {
-  return `https://maps.apple.com/?saddr=${origin.lat},${origin.lng}&daddr=${destination.lat},${destination.lng}&dirflg=d`;
+  const saddr = origin.lat && origin.lng ? `${origin.lat},${origin.lng}` : encodeURIComponent(origin.address || "");
+  const daddr = destination.lat && destination.lng ? `${destination.lat},${destination.lng}` : encodeURIComponent(destination.address || "");
+  return `https://maps.apple.com/?saddr=${saddr}&daddr=${daddr}&dirflg=d`;
 }
 
 export const GpsChooserModal: React.FC<GpsChooserModalProps> = ({
@@ -50,6 +57,7 @@ export const GpsChooserModal: React.FC<GpsChooserModalProps> = ({
   origin,
   destination,
   waypoints = [],
+  onOpenInApp,
 }) => {
   // Détection de l'appareil pour n'afficher que les options disponibles
   const isApple = useMemo(() => {
@@ -70,9 +78,15 @@ export const GpsChooserModal: React.FC<GpsChooserModalProps> = ({
   const wazeUrl = getWazeUrl(wazeTarget);
   const appleMapsUrl = getAppleMapsUrl(origin, destination);
 
-  const handleLaunchGps = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
+  const handleLaunchGps = (url: string, appKey: "google" | "waze" | "apple") => {
+    try {
+      onOpenInApp?.(appKey);
+    } catch (e) {
+      console.warn("onOpenInApp error:", e);
+    }
     onClose();
+    // Évite l'onglet blanc vide en utilisant le schéma direct au lieu de window.open(_blank)
+    window.location.href = url;
   };
 
   return (
@@ -102,7 +116,7 @@ export const GpsChooserModal: React.FC<GpsChooserModalProps> = ({
         <div className="flex items-center justify-around gap-2 pt-1 pb-1">
           {/* 1. Google Maps (Disponible partout) */}
           <button
-            onClick={() => handleLaunchGps(googleMapsUrl)}
+            onClick={() => handleLaunchGps(googleMapsUrl, "google")}
             className="flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
           >
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white border border-slate-200/90 shadow-md group-hover:scale-105 group-hover:shadow-lg transition-all">
@@ -122,7 +136,7 @@ export const GpsChooserModal: React.FC<GpsChooserModalProps> = ({
 
           {/* 2. Waze (Disponible sur smartphone) */}
           <button
-            onClick={() => handleLaunchGps(wazeUrl)}
+            onClick={() => handleLaunchGps(wazeUrl, "waze")}
             className="flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
           >
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#33ccff] shadow-md shadow-[#33ccff]/30 text-white group-hover:scale-105 group-hover:shadow-lg transition-all">
@@ -138,7 +152,7 @@ export const GpsChooserModal: React.FC<GpsChooserModalProps> = ({
           {/* 3. Apple Plans (Uniquement visible si l'appareil est un iPhone / iPad / Mac) */}
           {isApple && (
             <button
-              onClick={() => handleLaunchGps(appleMapsUrl)}
+              onClick={() => handleLaunchGps(appleMapsUrl, "apple")}
               className="flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
             >
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-700 shadow-md shadow-slate-900/20 text-white group-hover:scale-105 group-hover:shadow-lg transition-all">

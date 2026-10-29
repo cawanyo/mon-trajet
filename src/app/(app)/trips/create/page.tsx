@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
-import { reverseGeocode } from "@/lib/geo";
+import { reverseGeocode, geocodeAddress } from "@/lib/geo";
 import { useToast } from "@/components/ui/ToastProvider";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -111,22 +111,24 @@ function CreateTripContent() {
     zoom: 13,
   });
 
-  // Initialisation avec l'église UNE SEULE FOIS dès que les settings Convex sont chargés
+  // Initialisation avec l'église UNE SEULE FOIS dès que les settings Convex sont chargés (uniquement si destination vide)
   useEffect(() => {
     if (churchSettings && !hasInitializedChurchRef.current) {
       hasInitializedChurchRef.current = true;
-      setDestinationAddress(churchSettings.address);
-      setDestinationCoords({
-        lat: churchSettings.lat,
-        lng: churchSettings.lng,
-      });
-      setViewState((prev) => ({
-        ...prev,
-        latitude: churchSettings.lat,
-        longitude: churchSettings.lng,
-      }));
+      if (!destinationAddress) {
+        setDestinationAddress(churchSettings.address);
+        setDestinationCoords({
+          lat: churchSettings.lat,
+          lng: churchSettings.lng,
+        });
+        setViewState((prev) => ({
+          ...prev,
+          latitude: churchSettings.lat,
+          longitude: churchSettings.lng,
+        }));
+      }
     }
-  }, [churchSettings]);
+  }, [churchSettings, destinationAddress]);
 
   // Si des coordonnées GPS initiales ont été passées dans l'URL depuis la carte
   useEffect(() => {
@@ -422,7 +424,7 @@ function CreateTripContent() {
   }, [circleGeoJSON, routeLineGeoJSON, destinationAddress]);
 
   // Passage à l'étape 2 (Validation des lieux)
-  const handleGoToStep2 = () => {
+  const handleGoToStep2 = async () => {
     if (!departureAddress.trim()) {
       toast.error("Veuillez renseigner un lieu de départ.");
       return;
@@ -431,6 +433,24 @@ function CreateTripContent() {
       toast.error("Veuillez renseigner un lieu de destination.");
       return;
     }
+
+    // Géocodage automatique pour s'assurer que les coordonnées GPS correspondent exactement aux adresses saisies
+    let depCoords = departureCoords;
+    let destCoords = destinationCoords;
+
+    const geocodedDep = await geocodeAddress(departureAddress);
+    if (geocodedDep) {
+      depCoords = geocodedDep;
+      setDepartureCoords(geocodedDep);
+    }
+
+    const geocodedDest = await geocodeAddress(destinationAddress);
+    if (geocodedDest) {
+      destCoords = geocodedDest;
+      setDestinationCoords(geocodedDest);
+    }
+
+    fitRouteBounds(depCoords, destCoords);
 
     // Actualiser l'heure avec l'heure exacte du moment lors de l'accès à l'étape 2
     const now = new Date();
@@ -458,6 +478,14 @@ function CreateTripContent() {
 
     setIsSubmitting(true);
     try {
+      // Vérification finale des coordonnées pour garantir la concordance GPS
+      let finalDep = departureCoords;
+      let finalDest = destinationCoords;
+      const gDep = await geocodeAddress(departureAddress);
+      if (gDep) finalDep = gDep;
+      const gDest = await geocodeAddress(destinationAddress);
+      if (gDest) finalDest = gDest;
+
       const [year, month, day] = date.split("-").map(Number);
       const [hours, minutes] = time.split(":").map(Number);
       const departureDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
@@ -465,13 +493,13 @@ function CreateTripContent() {
       const tripId = await createTrip({
         token,
         departureLocation: {
-          lat: departureCoords.lat,
-          lng: departureCoords.lng,
+          lat: finalDep.lat,
+          lng: finalDep.lng,
           address: departureAddress,
         },
         destinationLocation: {
-          lat: destinationCoords.lat,
-          lng: destinationCoords.lng,
+          lat: finalDest.lat,
+          lng: finalDest.lng,
           address: destinationAddress,
         },
         departureTime: departureDate.getTime(),

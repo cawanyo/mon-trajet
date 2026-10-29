@@ -399,19 +399,55 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
     }
   };
 
-  const handleDriverGoClick = async () => {
+  const handleDriverGoClick = () => {
     if (!nextTrip) return;
-    try {
-      await onStartTrip?.(
-        nextTrip._id,
-        userLocation || undefined,
-        driverNextDestination
-      );
-      startWatchingDriverPosition(nextTrip._id);
-    } catch (e) {
-      console.warn("handleDriverGoClick:", e);
-    }
     setShowGpsChooser(true);
+  };
+
+  const handleLaunchNavigation = async () => {
+    if (!nextTrip || nextTrip.role !== "driver") return;
+
+    // Si le départ est prévu dans plus de 15 minutes, demander confirmation avant de démarrer prématurément
+    const diffMs = nextTrip.departureTime - Date.now();
+    if (diffMs > 15 * 60 * 1000 && nextTrip.status !== "active") {
+      const min = Math.round(diffMs / 60000);
+      const shouldStart = await confirm({
+        title: "Démarrage anticipé du trajet",
+        message: `Le départ est prévu dans ${min} minutes. Souhaitez-vous démarrer le trajet dès maintenant pour vos passagers ?`,
+        confirmText: "Oui, démarrer",
+        cancelText: "Ouvrir le GPS seulement",
+      });
+
+      if (shouldStart) {
+        try {
+          await onStartTrip?.(
+            nextTrip._id,
+            userLocation || undefined,
+            driverNextDestination
+          );
+          startWatchingDriverPosition(nextTrip._id);
+          toast.success("Trajet démarré !");
+        } catch (e) {
+          console.warn("Erreur démarrage trajet :", e);
+        }
+      }
+      return;
+    }
+
+    // Si départ imminent ou en cours
+    if (nextTrip.status !== "active") {
+      try {
+        await onStartTrip?.(
+          nextTrip._id,
+          userLocation || undefined,
+          driverNextDestination
+        );
+        startWatchingDriverPosition(nextTrip._id);
+        toast.success("Trajet démarré !");
+      } catch (e) {
+        console.warn("Erreur démarrage trajet :", e);
+      }
+    }
   };
 
   // Synchronisation de la ligne d'itinéraire optimisée (Départ -> Escales -> Destination)
@@ -745,8 +781,10 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                 anchor="bottom"
               >
                 <div className="relative flex flex-col items-center">
-                  <div className="px-2 py-0.5 mb-1 rounded-md bg-[#2d6cb5] text-white text-[9px] font-bold shadow-xs whitespace-nowrap">
-                    Destination (Église)
+                  <div className="px-2 py-0.5 mb-1 rounded-md bg-[#2d6cb5] text-white text-[9px] font-bold shadow-xs whitespace-nowrap max-w-[160px] truncate">
+                    {nextTrip.destinationLocation?.address?.includes("Église")
+                      ? "Destination (Église)"
+                      : nextTrip.destinationLocation?.address || "Destination"}
                   </div>
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2d6cb5] text-white ring-2 ring-white shadow-md">
                     <Church className="h-4.5 w-4.5 stroke-[2.2]" />
@@ -814,8 +852,10 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                 anchor="bottom"
               >
                 <div className="relative flex flex-col items-center">
-                  <div className="px-2 py-0.5 mb-1 rounded-md bg-[#1a3860] text-white text-[9px] font-bold shadow-xs whitespace-nowrap">
-                    Destination (Église)
+                  <div className="px-2 py-0.5 mb-1 rounded-md bg-[#1a3860] text-white text-[9px] font-bold shadow-xs whitespace-nowrap max-w-[160px] truncate">
+                    {nextTrip.destinationLocation?.address?.includes("Église")
+                      ? "Destination (Église)"
+                      : nextTrip.destinationLocation?.address || "Destination"}
                   </div>
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1a3860] text-white ring-2 ring-white shadow-md">
                     <Church className="h-4.5 w-4.5 stroke-[2.2]" />
@@ -1361,7 +1401,9 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                         </div>
                         <div className="min-w-0 flex-1 pt-0.5">
                           <p className="font-bold text-[#2d6cb5] text-[11px] uppercase tracking-wide">
-                            Destination (Église)
+                            {nextTrip.destinationLocation?.address?.includes("Église")
+                              ? "Destination (Église)"
+                              : "Destination finale"}
                           </p>
                           <p className="text-slate-600 text-xs truncate">
                             {nextTrip.destinationLocation?.address || churchLocation.address}
@@ -1544,6 +1586,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
               : []
           }
           tripId={nextTrip._id}
+          onOpenInApp={handleLaunchNavigation}
         />
       )}
     </div>
