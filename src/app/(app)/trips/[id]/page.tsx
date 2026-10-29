@@ -754,18 +754,6 @@ function TripDetailsContent() {
 
           {/* BOUTONS D'ACTION DU TEMPLATE */}
           <div className="space-y-2.5 pt-1">
-            {/* 0. Bouton : Y aller (GPS) vers le point de prise en charge ou l'église */}
-            {requestStatus === "accepted" && (
-              <button
-                type="button"
-                onClick={() => setShowGpsChooser(true)}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md shadow-[#2d6cb5]/20 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                <Navigation className="h-4 w-4 fill-white" />
-                <span>Y aller (Lancer le GPS)</span>
-              </button>
-            )}
-
             {/* 1. Bouton : Voir le trajet sur la carte */}
             <button
               type="button"

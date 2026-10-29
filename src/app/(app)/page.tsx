@@ -60,6 +60,7 @@ export default function HomeMapPage() {
         seatsRequested: 1,
       });
       toast.success("Demande envoyée ! Vous recevrez une alerte dès acceptation.");
+      router.push("/needs?tab=my");
     } catch (err: any) {
       toast.error(err.message || "Erreur lors de la demande");
     }

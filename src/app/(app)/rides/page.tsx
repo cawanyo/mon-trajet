@@ -250,7 +250,7 @@ function RideResultsContent() {
 
       setSelectedTrip(null);
       toast.success("Demande envoyée au conducteur !");
-      router.push("/trips?tab=passenger");
+      router.push("/needs?tab=my");
     } catch (err: any) {
       toast.error(err.message || "Erreur lors de la réservation");
     } finally {

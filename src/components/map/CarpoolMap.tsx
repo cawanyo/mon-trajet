@@ -19,6 +19,7 @@ import {
   Navigation,
   Compass,
   Check,
+  Eye,
 } from "lucide-react";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { getOptimalWaypointsOrder, getDistanceMeters } from "@/lib/geo";
@@ -1109,26 +1110,32 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                 <X className="h-4 w-4" />
               </button>
 
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e6f0fa] text-[#2d6cb5] font-bold text-base">
-                  {selectedTrip.driver?.name?.[0] ?? "C"}
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-sm font-bold text-[#1a3860]">
-                      {selectedTrip.driver?.name ?? "Conducteur"}
-                    </h3>
-                    <VerifiedTicker status={selectedTrip.driver?.status} showText size="xs" />
+              <div
+                onClick={() => router.push(`/trips/${selectedTrip._id}`)}
+                className="cursor-pointer group space-y-2"
+                title="Cliquer pour voir la page du trajet"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e6f0fa] text-[#2d6cb5] font-bold text-base group-hover:scale-105 transition-transform">
+                    {selectedTrip.driver?.name?.[0] ?? "C"}
                   </div>
-                  <p className="text-xs text-[#7d8fa5] mt-0.5">
-                    Départ : {formatHour(selectedTrip.departureTime)} • {selectedTrip.availableSeats} place(s) dispo
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="text-sm font-bold text-[#1a3860] group-hover:text-[#2d6cb5] transition-colors">
+                        {selectedTrip.driver?.name ?? "Conducteur"}
+                      </h3>
+                      <VerifiedTicker status={selectedTrip.driver?.status} showText size="xs" />
+                    </div>
+                    <p className="text-xs text-[#7d8fa5] mt-0.5">
+                      Départ : {formatHour(selectedTrip.departureTime)} • {selectedTrip.availableSeats} place(s) dispo
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="text-xs text-slate-600 flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
-                <span className="truncate">{selectedTrip.departureLocation.address}</span>
+                <div className="text-xs text-slate-600 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
+                  <span className="truncate">{selectedTrip.departureLocation.address}</span>
+                </div>
               </div>
 
               {onRequestSeat && currentUserId !== selectedTrip.driverId && (
@@ -1205,13 +1212,17 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
             <div className="rounded-3xl glass-card bg-white/95 backdrop-blur-2xl p-4 border border-white/80 shadow-[0_12px_36px_rgba(20,40,75,0.14)] space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-300">
               {/* En-tête : Titre du trajet + Décompte temps réel */}
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-[#e6f0fa] text-[#2d6cb5] shadow-xs">
+                <div
+                  onClick={() => router.push(`/trips/${nextTrip._id}`)}
+                  className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                  title="Voir la page du trajet"
+                >
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-[#e6f0fa] text-[#2d6cb5] shadow-xs group-hover:scale-105 transition-transform">
                     <Car className="h-5 w-5 stroke-[2.2]" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-[#1a3860] truncate">
+                      <h4 className="text-sm font-bold text-[#1a3860] truncate group-hover:text-[#2d6cb5] transition-colors">
                         {nextTrip.title || "Trajet vers l'église"}
                       </h4>
                       <span className="flex-shrink-0 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-[#138872] border border-emerald-200">
@@ -1497,7 +1508,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                     </div>
                   </div>
 
-                  {/* Boutons d'action : Appeler le conducteur & Lancer GPS vers son arrêt */}
+                  {/* Boutons d'action : Appeler le conducteur & Voir les détails du trajet */}
                   <div className="flex items-center gap-2 pt-0.5">
                     {nextTrip.driverPhone && (
                       <a
@@ -1509,11 +1520,11 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                       </a>
                     )}
                     <button
-                      onClick={() => setShowGpsChooser(true)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-3.5 px-3 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white text-xs font-bold shadow-md shadow-[#2d6cb5]/20 active:scale-95 transition-all cursor-pointer"
+                      onClick={() => router.push(`/trips/${nextTrip._id}`)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3.5 px-3 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] hover:opacity-95 text-white text-xs font-bold shadow-md shadow-[#1b7f80]/20 active:scale-95 transition-all cursor-pointer"
                     >
-                      <Navigation className="h-4 w-4 fill-white" />
-                      <span>Y aller (GPS)</span>
+                      <Eye className="h-4 w-4" />
+                      <span>Voir mon trajet</span>
                     </button>
                   </div>
                 </div>
@@ -1524,7 +1535,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
               {/* LA CARTE "TRAJET VERS L'ÉGLISE" : AFFICHÉE UNIQUEMENT S'IL Y A UN PROCHAIN TRAJET NON IMMINENT */}
               {!selectedTrip && !selectedNeed && nextTrip && (
                 <div
-                  onClick={() => router.push(nextTrip.role === "driver" ? `/trips/${nextTrip._id}` : "/trips")}
+                  onClick={() => router.push(`/trips/${nextTrip._id}`)}
                   className="group flex items-center justify-between rounded-2xl glass-card p-3.5 hover:bg-white/95 transition-all cursor-pointer shadow-sm hover:scale-[1.01]"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
