@@ -57,10 +57,24 @@ function CreateTripContent() {
   // Flag pour ne charger l'église par défaut qu'une seule fois (permet d'effacer le champ librement)
   const hasInitializedChurchRef = useRef(false);
 
-  // Date et Heure
-  const todayStr = new Date().toISOString().split("T")[0];
-  const [date, setDate] = useState(todayStr);
-  const [time, setTime] = useState("");
+  // Date et Heure par défaut (heure et date locales actuelles)
+  const getNowStrings = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    return {
+      dateStr: `${year}-${month}-${day}`,
+      timeStr: `${hours}:${minutes}`,
+    };
+  };
+
+  const initialDateTime = getNowStrings();
+  const [todayStr, setTodayStr] = useState(initialDateTime.dateStr);
+  const [date, setDate] = useState(initialDateTime.dateStr);
+  const [time, setTime] = useState(initialDateTime.timeStr);
 
   // Nombre de places
   const [seats, setSeats] = useState(3);
@@ -417,6 +431,13 @@ function CreateTripContent() {
       toast.error("Veuillez renseigner un lieu de destination.");
       return;
     }
+
+    // Actualiser l'heure avec l'heure exacte du moment lors de l'accès à l'étape 2
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    setTime(`${hours}:${minutes}`);
+
     setStep(2);
   };
 
