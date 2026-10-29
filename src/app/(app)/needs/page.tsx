@@ -12,6 +12,11 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { reverseGeocode } from "@/lib/geo";
 import { useToast } from "@/components/ui/ToastProvider";
 import {
+  formatDemandTargetDate,
+  parseDemandSlot,
+  formatRelativeTime,
+} from "@/lib/dates";
+import {
   Heart,
   Plus,
   MapPin,
@@ -299,33 +304,53 @@ function DemandsContent() {
           ) : (
             <div className="space-y-3">
               {demands.myDemands.map((demand) => {
-                const timeSlot = parseDemandTimeSlot(demand.note);
+                const timeSlot = parseDemandSlot((demand as any).desiredTimeSlot, demand.note);
+                const targetDateLabel = formatDemandTargetDate(
+                  (demand as any).desiredDate,
+                  demand.createdAt,
+                  demand.note
+                );
+
                 return (
                   <div
                     key={demand._id}
                     onClick={() => router.push(`/requests/${demand._id}`)}
                     className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 transition-all cursor-pointer active:scale-[0.99] group"
                   >
-                    {/* Ligne Statut & Date d'ajout */}
+                    {/* Ligne Statut & Heure de publication */}
                     <div className="flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-[#138872] text-white shadow-2xs">
                         <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                        <span>En attente</span>
+                        <span>Demande libre</span>
                       </span>
 
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#175276]">
-                        <Calendar className="h-3.5 w-3.5 text-[#249e83]" />
-                        <span>{formatDemandDate(demand.createdAt)}</span>
-                      </div>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        Publiée {formatRelativeTime(demand.createdAt, currentTime)}
+                      </span>
                     </div>
 
-                    {/* Créneau souhaité si renseigné */}
-                    {timeSlot && (
-                      <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-50 text-[#175276] text-xs font-bold">
-                        <Clock className="h-3.5 w-3.5 text-[#249e83]" />
-                        <span>Créneau souhaité : {timeSlot.label}</span>
+                    {/* BLOC DATE POUR LAQUELLE LA DEMANDE EST FAITE */}
+                    <div className="flex items-center justify-between bg-teal-50/70 border border-teal-100 rounded-2xl px-3.5 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-100/80 text-[#138872] flex-shrink-0">
+                          <Calendar className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                            Trajet souhaité pour
+                          </span>
+                          <span className="text-xs sm:text-sm font-black text-[#1a3860]">
+                            Pour le {targetDateLabel}
+                          </span>
+                        </div>
                       </div>
-                    )}
+
+                      {timeSlot && (
+                        <span className="text-[10px] font-extrabold text-[#138872] bg-white px-2 py-1 rounded-lg border border-teal-200 shadow-2xs">
+                          {timeSlot}
+                        </span>
+                      )}
+                    </div>
 
                   {/* Itinéraire */}
                   <div className="space-y-1.5">
@@ -399,22 +424,45 @@ function DemandsContent() {
           ) : (
             <div className="space-y-3">
               {demands.otherDemands.map((need) => {
-                const timeSlot = parseDemandTimeSlot(need.note);
+                const timeSlot = parseDemandSlot((need as any).desiredTimeSlot, need.note);
+                const targetDateLabel = formatDemandTargetDate(
+                  (need as any).desiredDate,
+                  need.createdAt,
+                  need.note
+                );
+
                 return (
                   <div
                     key={need._id}
                     onClick={() => router.push(`/requests/${need._id}`)}
                     className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 cursor-pointer transition-all active:scale-[0.99] group"
                   >
-                    {/* En-tête : Date visible de la demande */}
-                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-1.5 font-bold text-[#175276]">
-                        <Calendar className="h-3.5 w-3.5 text-[#249e83]" />
-                        <span>{formatDemandDate(need.createdAt)}</span>
+                    {/* En-tête : Date Cible pour laquelle la demande est faite */}
+                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e6f4f0] text-[#138872]">
+                          <Calendar className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Trajet souhaité pour
+                          </span>
+                          <span className="text-xs sm:text-sm font-black text-[#1a3860]">
+                            Pour le {targetDateLabel}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-[11px] font-medium text-slate-400">
-                        {formatRelativeAdded(need.createdAt, currentTime)}
-                      </span>
+
+                      <div className="flex flex-col items-end">
+                        {timeSlot && (
+                          <span className="text-[10px] font-extrabold text-[#138872] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            {timeSlot}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 mt-0.5">
+                          Publiée {formatRelativeTime(need.createdAt, currentTime)}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Passager & Places */}
@@ -452,14 +500,6 @@ function DemandsContent() {
                         <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-[#175276] transition-colors" />
                       </div>
                     </div>
-
-                    {/* Créneau souhaité si renseigné */}
-                    {timeSlot && (
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 text-[#175276] text-xs font-bold">
-                        <Clock className="h-3.5 w-3.5 text-[#249e83]" />
-                        <span>Créneau souhaité : {timeSlot.label}</span>
-                      </div>
-                    )}
 
                     {/* Lieu de prise en charge & Remarque */}
                     <div className="rounded-2xl bg-slate-50/90 p-3 text-xs space-y-1.5 border border-slate-100">

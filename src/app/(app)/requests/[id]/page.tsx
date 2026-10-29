@@ -11,6 +11,11 @@ import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInp
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { reverseGeocode, getDistanceMeters, formatDistance } from "@/lib/geo";
 import { useToast } from "@/components/ui/ToastProvider";
+import {
+  formatDemandTargetDate,
+  parseDemandSlot,
+  formatRelativeTime,
+} from "@/lib/dates";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -271,6 +276,7 @@ function RequestDetailsContent() {
     lng: 2.3522,
   });
   const [editSeats, setEditSeats] = useState(1);
+  const [editDate, setEditDate] = useState(todayStr);
   const [editStartHour, setEditStartHour] = useState(5);
   const [editEndHour, setEditEndHour] = useState(24);
   const [editNote, setEditNote] = useState("");
@@ -288,6 +294,7 @@ function RequestDetailsContent() {
       lng: request.destinationLocation?.lng || 2.3522,
     });
     setEditSeats(request.seatsRequested || 1);
+    setEditDate((request as any).desiredDate || todayStr);
 
     const { startHour, endHour, cleanNote } = parseTimeSlotFromNote(request.note);
     setEditStartHour(startHour);
@@ -310,7 +317,9 @@ function RequestDetailsContent() {
 
     setIsSaving(true);
     try {
-      const timeNote = `Créneau : ${formatHourLabel(editStartHour)} - ${formatHourLabel(editEndHour)}`;
+      const slotText = `${formatHourLabel(editStartHour)} - ${formatHourLabel(editEndHour)}`;
+      const targetDateLabel = formatDemandTargetDate(editDate);
+      const timeNote = `Date souhaitée : ${targetDateLabel} • Créneau : ${slotText}`;
       const finalNote = editNote.trim() ? `${editNote.trim()} (${timeNote})` : timeNote;
 
       await updateRequestMutation({
@@ -327,6 +336,8 @@ function RequestDetailsContent() {
           address: editDestAddress.trim() || "Église (Centre-ville)",
         },
         seatsRequested: editSeats,
+        desiredDate: editDate,
+        desiredTimeSlot: slotText,
         note: finalNote,
       });
 
@@ -518,29 +529,34 @@ function RequestDetailsContent() {
         {/* BLOC DATE ET CRÉNEAU DE LA DEMANDE */}
         <div className="rounded-3xl glass-card bg-white/95 backdrop-blur-xl p-4 border border-white/90 shadow-2xs space-y-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#e6f4f0] text-[#138872] flex-shrink-0">
-                <Calendar className="h-4.5 w-4.5 stroke-[2.2]" />
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e6f4f0] text-[#138872] flex-shrink-0">
+                <Calendar className="h-5 w-5 stroke-[2.2]" />
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                  Date de la demande
+                  Date pour laquelle le trajet est demandé
                 </p>
-                <p className="text-xs sm:text-sm font-black text-[#1a3860]">
-                  {formatDemandDate(request.createdAt)}
+                <p className="text-sm sm:text-base font-black text-[#1a3860]">
+                  Pour le {formatDemandTargetDate((request as any).desiredDate, request.createdAt, request.note)}
                 </p>
               </div>
             </div>
 
-            <span className="text-[11px] font-semibold text-[#7d8fa5] bg-slate-100 px-2.5 py-1 rounded-full">
-              {addedRelativeText}
+            <span className="text-[10px] font-semibold text-[#7d8fa5] bg-slate-100 px-2.5 py-1 rounded-full flex-shrink-0">
+              Publiée {formatRelativeTime(request.createdAt, currentTime)}
             </span>
           </div>
 
-          {parsedSlot.hasSlot && (
-            <div className="pt-2 border-t border-slate-100/90 flex items-center gap-2 text-xs font-bold text-[#175276]">
-              <Clock className="h-3.5 w-3.5 text-[#249e83] flex-shrink-0" />
-              <span>Créneau horaire souhaité : {parsedSlot.startHour}h - {parsedSlot.endHour}h</span>
+          {parseDemandSlot((request as any).desiredTimeSlot, request.note) && (
+            <div className="pt-2 border-t border-slate-100/90 flex items-center justify-between text-xs font-bold text-[#175276]">
+              <div className="flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-[#249e83] flex-shrink-0" />
+                <span>Créneau horaire souhaité</span>
+              </div>
+              <span className="text-xs font-black text-[#138872] bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                {parseDemandSlot((request as any).desiredTimeSlot, request.note)}
+              </span>
             </div>
           )}
         </div>
@@ -1028,6 +1044,26 @@ function RequestDetailsContent() {
                     +
                   </button>
                 </div>
+              </div>
+
+              {/* Date pour laquelle la demande est faite */}
+              <div className="space-y-1">
+                <label className="font-bold text-[#1a3860] flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-[#138872]" />
+                    <span>Date pour laquelle le trajet est demandé</span>
+                  </span>
+                  <span className="text-[11px] font-black text-[#138872]">
+                    {formatDemandTargetDate(editDate)}
+                  </span>
+                </label>
+                <input
+                  type="date"
+                  value={editDate}
+                  min={todayStr}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 focus:bg-white focus:border-[#138872] focus:outline-none"
+                />
               </div>
 
               {/* 4. Plage horaire souhaitée */}

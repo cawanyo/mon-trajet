@@ -8,6 +8,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
+import { formatDemandTargetDate, parseDemandSlot } from "@/lib/dates";
 import {
   Car,
   Users,
@@ -471,7 +472,7 @@ function TripsContent() {
                         <span>
                           {trip
                             ? formatCompactDate(trip.departureTime)
-                            : `Demande du ${formatCompactDate(request.createdAt)}`}
+                            : `Pour le ${formatDemandTargetDate((request as any).desiredDate, request.createdAt, request.note)}`}
                         </span>
                         {!trip && (
                           <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-teal-50 text-[#138872] border border-teal-200">

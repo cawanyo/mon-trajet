@@ -10,6 +10,7 @@ import {
   Church,
   Phone,
   Clock,
+  Calendar,
   Users,
   MapPin,
   X,
@@ -25,6 +26,7 @@ import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { getOptimalWaypointsOrder, getDistanceMeters } from "@/lib/geo";
 import { GpsChooserModal } from "@/components/navigation/GpsChooserModal";
 import { useToast } from "@/components/ui/ToastProvider";
+import { formatDemandTargetDate, parseDemandSlot } from "@/lib/dates";
 
 export interface LocationPoint {
   lat: number;
@@ -61,6 +63,8 @@ export interface NeedItem {
   } | null;
   pickupLocation: LocationPoint;
   seatsRequested: number;
+  desiredDate?: string;
+  desiredTimeSlot?: string;
   note?: string;
   createdAt?: number;
 }
@@ -1173,12 +1177,16 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                     </h3>
                     <VerifiedTicker status={selectedNeed.passenger?.status} showText size="xs" />
                   </div>
-                  <p className="text-xs text-[#38917d] font-medium mt-0.5">
-                    Demande {selectedNeed.seatsRequested} place(s)
-                    {selectedNeed.createdAt && (
-                      <span className="text-slate-400 font-normal">
-                        {" "}• Publiée à {formatHour(selectedNeed.createdAt)}
-                      </span>
+                  <p className="text-xs text-[#38917d] font-bold mt-0.5 flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>
+                      Pour le {formatDemandTargetDate(selectedNeed.desiredDate, selectedNeed.createdAt, selectedNeed.note)}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {selectedNeed.seatsRequested} place(s)
+                    {parseDemandSlot(selectedNeed.desiredTimeSlot, selectedNeed.note) && (
+                      <span> • Créneau : {parseDemandSlot(selectedNeed.desiredTimeSlot, selectedNeed.note)}</span>
                     )}
                   </p>
                 </div>

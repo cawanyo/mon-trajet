@@ -11,6 +11,7 @@ import {
   Car,
   MapPin,
   Clock,
+  Calendar,
   Search,
   SlidersHorizontal,
   ChevronLeft,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import { reverseGeocode } from "@/lib/geo";
 import { useToast } from "@/components/ui/ToastProvider";
+import { formatDemandTargetDate } from "@/lib/dates";
 
 // Calcul de distance en mètres selon la formule de Haversine
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -121,6 +123,12 @@ function RideResultsContent() {
   const [needEndHour, setNeedEndHour] = useState<number>(24);
   const [needNote, setNeedNote] = useState("");
   const [isSubmittingNeed, setIsSubmittingNeed] = useState(false);
+  const todayStr = useMemo(() => getLocalDateString(Date.now()), []);
+  const [needDate, setNeedDate] = useState<string>(searchDate || todayStr);
+
+  useEffect(() => {
+    if (searchDate) setNeedDate(searchDate);
+  }, [searchDate]);
 
   // Formatage de l'heure : "08:45"
   const formatHour = (ts: number) => {
@@ -268,7 +276,9 @@ function RideResultsContent() {
 
     setIsSubmittingNeed(true);
     try {
-      const timeNote = `Créneau : ${formatHourLabel(needStartHour)} - ${formatHourLabel(needEndHour)}`;
+      const slotText = `${formatHourLabel(needStartHour)} - ${formatHourLabel(needEndHour)}`;
+      const targetDateLabel = formatDemandTargetDate(needDate);
+      const timeNote = `Date souhaitée : ${targetDateLabel} • Créneau : ${slotText}`;
       const fullNote = needNote.trim() ? `${needNote.trim()} (${timeNote})` : timeNote;
 
       let resolvedPickup = fromAddress;
@@ -291,6 +301,8 @@ function RideResultsContent() {
           address: toAddress || "Église Centrale de la Grâce",
         },
         seatsRequested: needSeats,
+        desiredDate: needDate,
+        desiredTimeSlot: slotText,
         note: fullNote,
       });
 
@@ -914,13 +926,25 @@ function RideResultsContent() {
 
             {/* Date et Plage horaire modifiable */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/90 border border-slate-200/80">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Date
-                </span>
-                <span className="text-xs font-bold text-[#1a3860]">
-                  {dateDisplayLabel}
-                </span>
+              <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200/80 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Date pour laquelle le trajet est demandé
+                  </span>
+                  <span className="text-xs font-black text-[#138872]">
+                    {formatDemandTargetDate(needDate)}
+                  </span>
+                </div>
+                <div className="relative flex items-center">
+                  <Calendar className="absolute left-3 h-4 w-4 text-[#138872] pointer-events-none" />
+                  <input
+                    type="date"
+                    value={needDate}
+                    min={todayStr}
+                    onChange={(e) => setNeedDate(e.target.value)}
+                    className="w-full h-10 pl-9 pr-3 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-bold text-[#1a3860] focus:outline-none focus:ring-2 focus:ring-[#138872]/20 focus:border-[#138872]"
+                  />
+                </div>
               </div>
 
               {/* Plage horaire modifiable */}

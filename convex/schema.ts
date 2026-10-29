@@ -114,6 +114,8 @@ export default defineSchema({
       v.literal("cancelled")   // Annulé par le passager
     ),
     seatsRequested: v.number(),
+    desiredDate: v.optional(v.string()), // Date cible "YYYY-MM-DD" pour laquelle le trajet est demandé
+    desiredTimeSlot: v.optional(v.string()), // Créneau souhaité ex: "08h - 10h"
     note: v.optional(v.string()),
     createdAt: v.number(),
   })

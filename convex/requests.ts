@@ -21,6 +21,8 @@ export const createRequest = mutation({
       })
     ),
     seatsRequested: v.number(),
+    desiredDate: v.optional(v.string()),
+    desiredTimeSlot: v.optional(v.string()),
     note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -79,6 +81,8 @@ export const createRequest = mutation({
         destinationLocation: args.destinationLocation,
         status: "pending",
         seatsRequested: args.seatsRequested,
+        desiredDate: args.desiredDate,
+        desiredTimeSlot: args.desiredTimeSlot,
         note: args.note,
         createdAt: Date.now(),
       });
@@ -106,6 +110,8 @@ export const createRequest = mutation({
       destinationLocation: args.destinationLocation,
       status: "pending",
       seatsRequested: args.seatsRequested,
+      desiredDate: args.desiredDate,
+      desiredTimeSlot: args.desiredTimeSlot,
       note: args.note,
       createdAt: Date.now(),
     });
@@ -484,6 +490,8 @@ export const updateRequest = mutation({
       })
     ),
     seatsRequested: v.optional(v.number()),
+    desiredDate: v.optional(v.string()),
+    desiredTimeSlot: v.optional(v.string()),
     note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -528,6 +536,12 @@ export const updateRequest = mutation({
     }
     if (args.note !== undefined) {
       updates.note = args.note;
+    }
+    if (args.desiredDate !== undefined) {
+      updates.desiredDate = args.desiredDate;
+    }
+    if (args.desiredTimeSlot !== undefined) {
+      updates.desiredTimeSlot = args.desiredTimeSlot;
     }
 
     await ctx.db.patch(request._id, updates);

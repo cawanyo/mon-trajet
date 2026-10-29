@@ -100,7 +100,9 @@ function CreateNeedContent() {
 
     setIsSubmitting(true);
     try {
-      const timeNote = `Créneau : ${formatHourLabel(startHour)} - ${formatHourLabel(endHour)}`;
+      const slotText = `${formatHourLabel(startHour)} - ${formatHourLabel(endHour)}`;
+      const targetDate = paramDate || new Date().toISOString().split("T")[0];
+      const timeNote = `Date souhaitée : ${dateFormatted} • Créneau : ${slotText}`;
       const fullNote = note.trim() ? `${note.trim()} (${timeNote})` : timeNote;
 
       await createRequest({
@@ -116,6 +118,8 @@ function CreateNeedContent() {
           address: destAddress || "Église",
         },
         seatsRequested: seats,
+        desiredDate: targetDate,
+        desiredTimeSlot: slotText,
         note: fullNote,
       });
 
