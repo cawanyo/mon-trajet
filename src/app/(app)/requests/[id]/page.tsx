@@ -538,7 +538,7 @@ function RequestDetailsContent() {
                   Date pour laquelle le trajet est demandé
                 </p>
                 <p className="text-sm sm:text-base font-black text-[#1a3860]">
-                  Pour le {formatDemandTargetDate((request as any).desiredDate, request.createdAt, request.note)}
+                  {formatDemandTargetDate((request as any).desiredDate, request.createdAt, request.note, true)}
                 </p>
               </div>
             </div>

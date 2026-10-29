@@ -36,12 +36,13 @@ export function formatRelativeTime(timestamp: number, currentTime: number = Date
 }
 
 /**
- * Retourne la date CIBLE pour laquelle le trajet est demandé (ex: "Pour le Dim. 1 nov.", "Pour aujourd'hui")
+ * Retourne la date CIBLE pour laquelle le trajet est demandé (ex: "Dim. 1 nov.", "Aujourd'hui")
  */
 export function formatDemandTargetDate(
   desiredDate?: string,
   createdAt?: number,
-  note?: string
+  note?: string,
+  withPrefix: boolean = false
 ): string {
   // 1. Si une date explicite "YYYY-MM-DD" est présente
   if (desiredDate) {
@@ -59,9 +60,9 @@ export function formatDemandTargetDate(
       });
       const capitalized = formatted.charAt(0).toUpperCase() + formatted.slice(1);
 
-      if (diffDays === 0) return `Aujourd'hui (${capitalized})`;
-      if (diffDays === 1) return `Demain (${capitalized})`;
-      return capitalized;
+      if (diffDays === 0) return withPrefix ? "Pour aujourd'hui" : `Aujourd'hui`;
+      if (diffDays === 1) return withPrefix ? "Pour demain" : `Demain`;
+      return withPrefix ? `Pour le ${capitalized}` : capitalized;
     }
   }
 
@@ -69,7 +70,8 @@ export function formatDemandTargetDate(
   if (note) {
     const matchExplicit = note.match(/Date(?:\s*souhaitée)?\s*:\s*([^•\(\n\r]+)/i);
     if (matchExplicit && matchExplicit[1].trim()) {
-      return matchExplicit[1].trim();
+      const label = matchExplicit[1].trim();
+      return withPrefix && !label.toLowerCase().startsWith("pour") ? `Pour le ${label}` : label;
     }
   }
 
@@ -89,7 +91,8 @@ export function formatDemandTargetDate(
     });
     const capitalized = formatted.charAt(0).toUpperCase() + formatted.slice(1);
 
-    return isToday ? `Aujourd'hui (${capitalized})` : capitalized;
+    if (isToday) return withPrefix ? "Pour aujourd'hui" : "Aujourd'hui";
+    return withPrefix ? `Pour le ${capitalized}` : capitalized;
   }
 
   return "Date à convenir";
