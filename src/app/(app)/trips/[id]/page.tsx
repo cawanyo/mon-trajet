@@ -15,14 +15,12 @@ import {
   Users,
   Compass,
   ChevronLeft,
-  Settings,
   Clock,
   Check,
   X,
   Phone,
   Loader2,
   AlertCircle,
-  Share2,
   Trash2,
   Pencil,
   ChevronRight,
@@ -173,7 +171,6 @@ function TripDetailsContent() {
   const [activeTab, setActiveTab] = useState<"details" | "passengers" | "requests">("details");
 
   // Modales & Fiche de demande détaillée
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -848,16 +845,6 @@ function TripDetailsContent() {
         <ChevronLeft className="h-6 w-6 stroke-[2.4]" />
       </button>
 
-      {/* BOUTON PARAMÈTRES (⚙) FIXE EN HAUT À DROITE */}
-      <button
-        onClick={() => setShowSettingsModal(true)}
-        className="fixed right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full glass-card bg-white/90 backdrop-blur-xl text-slate-700 shadow-md border border-white/90 hover:bg-white active:scale-95 transition-all"
-        style={{ top: "max(1rem, env(safe-area-inset-top, 1rem))" }}
-        title="Options du trajet"
-      >
-        <Settings className="h-5 w-5 stroke-[2.2]" />
-      </button>
-
       {/* 1. SECTION SUPÉRIEURE : CARTE INTERACTIVE FIXE */}
       <div className="relative h-[38dvh] sm:h-[44dvh] min-h-[220px] w-full bg-slate-100 overflow-hidden flex-shrink-0">
         <Map
@@ -1457,20 +1444,24 @@ function TripDetailsContent() {
       )}
 
       {/* ============================================================ */}
-      {/* MODALE GLASSY : MODIFIER LE TRAJET                          */}
+      {/* MODALE BOTTOM SHEET ÉPURÉE : MODIFIER LE TRAJET              */}
       {/* ============================================================ */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-md p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-t-[36px] sm:rounded-3xl glass-panel bg-white/95 backdrop-blur-2xl border border-white/90 p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-t-[32px] sm:rounded-3xl bg-white p-5 shadow-2xl border border-slate-100 space-y-4 max-h-[85vh] overflow-y-auto">
+            {/* Poignée mobile */}
+            <div className="h-1 w-9 bg-slate-200 rounded-full mx-auto -mt-1 sm:hidden" />
+
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-[#1a3860]">
+              <h2 className="text-sm font-black text-[#1a3860]">
                 Modifier le trajet
               </h2>
               <button
+                type="button"
                 onClick={() => setShowEditModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full glass-card bg-white/80 text-slate-500 hover:text-slate-700 hover:bg-white"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
@@ -1479,78 +1470,70 @@ function TripDetailsContent() {
                 e.preventDefault();
                 handleSaveEdit();
               }}
-              className="space-y-4 py-1"
+              className="space-y-3.5 text-xs"
             >
               {/* Date & Heure */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#1a3860] flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-[#138872]" />
                   <span>Date et heure de départ</span>
                 </label>
                 <input
                   type="datetime-local"
                   value={editDepartureTime}
                   onChange={(e) => setEditDepartureTime(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-xs font-semibold text-slate-800 shadow-xs focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-bold text-slate-800 focus:bg-white focus:border-[#138872] focus:outline-none transition-all"
                   required
                 />
               </div>
 
-              {/* Nombre total de places avec contrainte sur les places déjà acceptées */}
-              <div className="space-y-1.5">
+              {/* Stepper Places */}
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#1a3860] flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5 text-blue-600" />
-                    <span>Places totales proposées</span>
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-[#138872]" />
+                    <span>Places disponibles</span>
                   </label>
                   {occupiedSeats > 0 && (
-                    <span className="text-[11px] font-semibold text-amber-600">
-                      Min. {occupiedSeats} (déjà réservées / demandées)
+                    <span className="text-[10px] font-semibold text-slate-400">
+                      Min. {occupiedSeats} réservée{occupiedSeats > 1 ? "s" : ""}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  {[1, 2, 3, 4, 5, 6, 7].map((num) => {
-                    const isDisabled = num < occupiedSeats;
-                    return (
-                      <button
-                        key={num}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => setEditTotalSeats(num)}
-                        title={
-                          isDisabled
-                            ? `Impossible : ${occupiedSeats} place(s) déjà réservée(s) ou demandée(s)`
-                            : `${num} place(s)`
-                        }
-                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-                          isDisabled
-                            ? "bg-slate-100/40 text-slate-300 cursor-not-allowed border border-dashed border-slate-200"
-                            : editTotalSeats === num
-                            ? "bg-[#175276] text-white shadow-xs"
-                            : "bg-slate-100/90 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    );
-                  })}
+
+                <div className="flex items-center justify-between bg-slate-50 rounded-2xl p-1.5 border border-slate-200/80">
+                  <button
+                    type="button"
+                    disabled={editTotalSeats <= Math.max(1, occupiedSeats)}
+                    onClick={() =>
+                      setEditTotalSeats((s) => Math.max(Math.max(1, occupiedSeats), s - 1))
+                    }
+                    className="h-8 w-8 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-2xs"
+                  >
+                    -
+                  </button>
+                  <span className="font-bold text-sm text-[#1a3860]">
+                    {editTotalSeats} place{editTotalSeats > 1 ? "s" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={editTotalSeats >= 8}
+                    onClick={() => setEditTotalSeats((s) => Math.min(8, s + 1))}
+                    className="h-8 w-8 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-2xs"
+                  >
+                    +
+                  </button>
                 </div>
-                {occupiedSeats > 0 && (
-                  <p className="text-[11px] font-medium text-amber-700 bg-amber-50/80 p-2 rounded-xl border border-amber-200/60">
-                    ⚠️ {occupiedSeats} place(s) déjà réservée(s) ou demandée(s) par vos passagers. Vous ne pouvez pas définir un total inférieur à {occupiedSeats}.
-                  </p>
-                )}
               </div>
 
               {/* Détour toléré */}
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#1a3860] flex items-center gap-1.5">
-                    <Compass className="h-3.5 w-3.5 text-blue-600" />
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Compass className="h-3.5 w-3.5 text-[#138872]" />
                     <span>Détour toléré</span>
                   </label>
-                  <span className="text-xs font-extrabold text-blue-600">
+                  <span className="font-bold text-[#138872]">
                     {editPickupRadius >= 1000
                       ? `${(editPickupRadius / 1000).toFixed(1)} km`
                       : `${editPickupRadius} m`}
@@ -1563,90 +1546,38 @@ function TripDetailsContent() {
                   step="100"
                   value={editPickupRadius}
                   onChange={(e) => setEditPickupRadius(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#175276]"
+                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#138872]"
                 />
               </div>
 
-              {/* Notes */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#1a3860]">
-                  Remarques ou instructions
+              {/* Instructions / Remarques */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">
+                  Instructions ou remarques
                 </label>
-                <textarea
+                <input
+                  type="text"
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Ex: Coffre spacieux, attente max 5 min..."
-                  rows={2}
-                  className="w-full rounded-2xl border border-slate-200/80 bg-white/80 p-3 text-xs text-slate-800 shadow-xs focus:border-blue-500 focus:outline-none"
+                  placeholder="Ex: Coffre spacieux, départ ponctuel..."
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2 font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#138872] focus:outline-none transition-all"
                 />
               </div>
 
-              {/* Bouton de sauvegarde */}
+              {/* Bouton de sauvegarde sobre */}
               <button
                 type="submit"
                 disabled={isActionLoading}
-                className="w-full h-12 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1b7f80]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 mt-2"
+                className="w-full h-11 rounded-2xl bg-[#175276] hover:bg-[#134260] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 mt-1"
               >
                 {isActionLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Check className="h-4 w-4" />
                 )}
-                <span>Enregistrer les modifications</span>
+                <span>Enregistrer</span>
               </button>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================ */}
-      {/* MODALE GLASSY : PARAMÈTRES / PARTAGE DU TRAJET              */}
-      {/* ============================================================ */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-md p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-t-[36px] sm:rounded-3xl glass-panel bg-white/95 backdrop-blur-2xl border border-white/90 p-5 shadow-2xl space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-[#1a3860]">Options</h2>
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full glass-card bg-white/80 text-slate-500 hover:text-slate-700 hover:bg-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  if (typeof navigator !== "undefined" && navigator.share) {
-                    navigator.share({
-                      title: "Mon trajet de covoiturage",
-                      text: `Trajet vers ${trip.destinationLocation.address} à ${formatTime(trip.departureTime)}`,
-                      url: window.location.href,
-                    });
-                  } else {
-                    navigator.clipboard.writeText(window.location.href);
-                    toast.success("Lien copié dans le presse-papiers !");
-                  }
-                  setShowSettingsModal(false);
-                }}
-                className="w-full py-3 px-4 rounded-2xl glass-card bg-white/80 hover:bg-white text-[#1a3860] text-xs font-bold flex items-center gap-2.5 transition-all border border-white/90 shadow-xs"
-              >
-                <Share2 className="h-4 w-4 text-[#2d6cb5]" />
-                <span>Partager ce trajet</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowSettingsModal(false);
-                  setShowEditModal(true);
-                }}
-                className="w-full py-3 px-4 rounded-2xl glass-card bg-white/80 hover:bg-white text-[#1a3860] text-xs font-bold flex items-center gap-2.5 transition-all border border-white/90 shadow-xs"
-              >
-                <Settings className="h-4 w-4 text-slate-500" />
-                <span>Paramètres et annulation</span>
-              </button>
-            </div>
           </div>
         </div>
       )}
