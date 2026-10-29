@@ -8,10 +8,12 @@ import { CarpoolMap } from "@/components/map/CarpoolMap";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function HomeMapPage() {
   const { user, token, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   // Requêtes réactives Convex branchées au token
   const trips = useQuery(api.trips.listAvailableTrips, token ? { token } : "skip");
@@ -57,9 +59,9 @@ export default function HomeMapPage() {
         },
         seatsRequested: 1,
       });
-      alert("Votre demande de place a été envoyée ! Vous recevrez une alerte avec son numéro dès acceptation.");
+      toast.success("Demande envoyée ! Vous recevrez une alerte dès acceptation.");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors de la demande");
     }
   };
 

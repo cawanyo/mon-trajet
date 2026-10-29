@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
+import { useToast } from "@/components/ui/ToastProvider";
 import {
   MapPin,
   ChevronLeft,
@@ -27,6 +28,7 @@ function CreateNeedContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, token } = useAuth();
+  const { toast } = useToast();
   const createRequest = useMutation(api.requests.createRequest);
   const churchSettings = useQuery(api.settings.getChurchSettings);
 
@@ -81,7 +83,7 @@ function CreateNeedContent() {
           setPickupAddress("Ma position actuelle");
         },
         (err) => {
-          alert("Impossible d'accéder au GPS : " + err.message);
+          toast.error("Impossible d'accéder au GPS : " + err.message);
         },
         { enableHighAccuracy: true }
       );
@@ -91,7 +93,7 @@ function CreateNeedContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      alert("Veuillez vous connecter pour publier votre besoin.");
+      toast.info("Veuillez vous connecter pour publier votre besoin.");
       router.push("/login");
       return;
     }
@@ -117,10 +119,10 @@ function CreateNeedContent() {
         note: fullNote,
       });
 
-      alert("Votre besoin de trajet a été publié ! Les conducteurs passant à proximité verront votre signal sur la carte.");
+      toast.success("Votre besoin de trajet a été publié !");
       router.push("/");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors de la publication");
     } finally {
       setIsSubmitting(false);
     }

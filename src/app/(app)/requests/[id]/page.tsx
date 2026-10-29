@@ -10,6 +10,7 @@ import { BottomNav } from "@/components/navigation/BottomNav";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { reverseGeocode, getDistanceMeters, formatDistance } from "@/lib/geo";
+import { useToast } from "@/components/ui/ToastProvider";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -64,6 +65,7 @@ function RequestDetailsContent() {
   const router = useRouter();
   const params = useParams();
   const { user, token } = useAuth();
+  const { toast, confirm } = useToast();
   const requestId = params.id as Id<"requests">;
   const mapRef = useRef<any>(null);
 
@@ -279,11 +281,11 @@ function RequestDetailsContent() {
   const handleSaveEdit = async () => {
     if (!token || !request) return;
     if (editSeats < 1) {
-      alert("Le nombre de places demandées doit être d'au moins 1.");
+      toast.error("Le nombre de places demandées doit être d'au moins 1.");
       return;
     }
     if (!editPickupAddress.trim()) {
-      alert("Veuillez renseigner un lieu de prise en charge.");
+      toast.error("Veuillez renseigner un lieu de prise en charge.");
       return;
     }
 
@@ -312,9 +314,9 @@ function RequestDetailsContent() {
       setResolvedPickupAddress(editPickupAddress.trim());
       setResolvedDestAddress(editDestAddress.trim() || "Église (Centre-ville)");
       setShowEditModal(false);
-      alert("Votre demande a été modifiée avec succès.");
+      toast.success("Demande modifiée avec succès.");
     } catch (err: any) {
-      alert("Erreur lors de la modification : " + err.message);
+      toast.error(err.message || "Erreur lors de la modification");
     } finally {
       setIsSaving(false);
     }
@@ -322,9 +324,14 @@ function RequestDetailsContent() {
 
   const handleCancel = async () => {
     if (!token || !request) return;
-    if (!window.confirm("Êtes-vous sûr de vouloir annuler cette demande de trajet ?")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Annulation de la demande",
+      message: "Êtes-vous sûr de vouloir annuler cette demande de trajet ?",
+      confirmText: "Oui, annuler",
+      cancelText: "Conserver",
+      destructive: true,
+    });
+    if (!ok) return;
 
     setIsCancelling(true);
     try {
@@ -332,10 +339,10 @@ function RequestDetailsContent() {
         token,
         requestId: request._id,
       });
-      alert("Votre demande a été annulée.");
+      toast.success("Demande annulée.");
       router.push("/needs?tab=my");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors de l'annulation");
     } finally {
       setIsCancelling(false);
     }
@@ -344,7 +351,7 @@ function RequestDetailsContent() {
   // Ouverture de la modale de planification horaire par le conducteur
   const handleOpenScheduleModal = () => {
     if (!token) {
-      alert("Veuillez vous connecter pour proposer de récupérer ce passager.");
+      toast.info("Veuillez vous connecter pour proposer de récupérer ce passager.");
       router.push("/login");
       return;
     }
@@ -355,14 +362,14 @@ function RequestDetailsContent() {
   const handleConfirmSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      alert("Veuillez vous connecter pour proposer de récupérer ce passager.");
+      toast.info("Veuillez vous connecter pour proposer de récupérer ce passager.");
       router.push("/login");
       return;
     }
     if (!request) return;
 
     if (!pickupDate || !pickupTime) {
-      alert("Veuillez choisir une date et une heure de départ.");
+      toast.error("Veuillez choisir une date et une heure de départ.");
       return;
     }
 
@@ -417,12 +424,12 @@ function RequestDetailsContent() {
       });
 
       setShowScheduleModal(false);
-      alert(
-        `Trajet créé avec succès pour ${request.seatsRequested} place${request.seatsRequested > 1 ? "s" : ""} ! Le passager a été ajouté à votre véhicule.`
+      toast.success(
+        `Trajet créé ! Le passager a été ajouté à votre véhicule.`
       );
       router.push(`/trips/${tripId}`);
     } catch (err: any) {
-      alert("Erreur lors de la création du trajet : " + err.message);
+      toast.error(err.message || "Erreur lors de la création du trajet");
     } finally {
       setIsCreatingTrip(false);
     }

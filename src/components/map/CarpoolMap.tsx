@@ -23,6 +23,7 @@ import {
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { getOptimalWaypointsOrder, getDistanceMeters } from "@/lib/geo";
 import { GpsChooserModal } from "@/components/navigation/GpsChooserModal";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export interface LocationPoint {
   lat: number;
@@ -138,6 +139,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   acceptedTripPhoneNumbers = {},
 }) => {
   const router = useRouter();
+  const { confirm, toast } = useToast();
 
   // Localisation réelle de l'utilisateur (s'il accepte)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -337,9 +339,16 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
 
   const handleCompleteTrip = async () => {
     if (!nextTrip) return;
-    if (window.confirm("Êtes-vous bien arrivé à l'église ? Ce trajet sera marqué comme terminé.")) {
+    const ok = await confirm({
+      title: "Fin du trajet",
+      message: "Êtes-vous bien arrivé ? Marquer le trajet comme terminé ?",
+      confirmText: "Oui, terminé",
+      cancelText: "Pas encore",
+    });
+    if (ok) {
       try {
         await onCompleteTrip?.(nextTrip._id);
+        toast.success("Trajet terminé avec succès !");
       } catch (e) {
         console.warn("handleCompleteTrip err:", e);
       }

@@ -1,8 +1,34 @@
 import { mutation } from "./_generated/server";
 
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + "_mon_trajet_salt_2026");
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export const initDefaultPasswords = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const defaultHash = await hashPassword("eglise2026");
+    const users = await ctx.db.query("users").collect();
+    let updated = 0;
+    for (const u of users) {
+      if (!u.passwordHash) {
+        await ctx.db.patch(u._id, { passwordHash: defaultHash });
+        updated++;
+      }
+    }
+    return { message: `${updated} mot(s) de passe initialisé(s) à eglise2026` };
+  },
+});
+
 export const seedDatabase = mutation({
   args: {},
   handler: async (ctx) => {
+    const defaultHash = await hashPassword("eglise2026");
+
     // Vérifier si la base contient déjà des utilisateurs
     const existing = await ctx.db.query("users").take(1);
     if (existing.length > 0) {
@@ -20,6 +46,7 @@ export const seedDatabase = mutation({
       name: "Pasteur David (Admin)",
       email: "admin@eglise.fr",
       phoneNumber: "+33601020304",
+      passwordHash: defaultHash,
       role: "admin",
       status: "approved",
       createdAt: Date.now(),
@@ -30,6 +57,7 @@ export const seedDatabase = mutation({
       name: "Marc Responsable",
       email: "manager@eglise.fr",
       phoneNumber: "+33611223344",
+      passwordHash: defaultHash,
       role: "manager",
       status: "approved",
       createdAt: Date.now(),
@@ -40,6 +68,7 @@ export const seedDatabase = mutation({
       name: "Jean Conducteur",
       email: "jean@eglise.fr",
       phoneNumber: "+33655667788",
+      passwordHash: defaultHash,
       role: "user",
       status: "approved",
       createdAt: Date.now(),
@@ -50,6 +79,7 @@ export const seedDatabase = mutation({
       name: "Sophie Nouvelle",
       email: "sophie@eglise.fr",
       phoneNumber: "+33699887766",
+      passwordHash: defaultHash,
       role: "user",
       status: "pending",
       createdAt: Date.now(),
@@ -60,6 +90,7 @@ export const seedDatabase = mutation({
       name: "Marie Membre",
       email: "marie@eglise.fr",
       phoneNumber: "+33644332211",
+      passwordHash: defaultHash,
       role: "user",
       status: "approved",
       createdAt: Date.now(),

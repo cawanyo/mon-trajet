@@ -5,10 +5,12 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
+import { useToast } from "@/components/ui/ToastProvider";
 import { Search, Shield, User, Check, X, Phone, Mail, Loader2 } from "lucide-react";
 
 export default function AdminUsersManagementPage() {
   const { token } = useAuth();
+  const { toast } = useToast();
   const users = useQuery(api.users.listAllUsersAdmin, token ? { token } : "skip");
   const changeRole = useMutation(api.users.changeUserRole);
   const reviewStatus = useMutation(api.users.reviewUserStatus);
@@ -34,8 +36,9 @@ export default function AdminUsersManagementPage() {
     if (!token) return;
     try {
       await changeRole({ token, userId: userId as any, role: newRole });
+      toast.success("Rôle mis à jour !");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors du changement de rôle");
     }
   };
 
@@ -43,8 +46,9 @@ export default function AdminUsersManagementPage() {
     if (!token) return;
     try {
       await reviewStatus({ token, userId: userId as any, status: newStatus });
+      toast.success(newStatus === "approved" ? "Utilisateur approuvé !" : "Utilisateur refusé.");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors du changement de statut");
     }
   };
 

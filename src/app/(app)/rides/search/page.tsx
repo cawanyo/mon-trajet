@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
 import { reverseGeocode } from "@/lib/geo";
+import { useToast } from "@/components/ui/ToastProvider";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -24,6 +25,7 @@ import {
 function RideSearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
   const mapRef = useRef<any>(null);
   const churchSettings = useQuery(api.settings.getChurchSettings);
@@ -100,7 +102,7 @@ function RideSearchContent() {
   // Détection GPS avec géocodage inverse automatique vers une vraie adresse
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
-      alert("La géolocalisation n'est pas supportée par votre navigateur.");
+      toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
       return;
     }
     setIsLocating(true);
@@ -123,7 +125,7 @@ function RideSearchContent() {
       },
       (err) => {
         setIsLocating(false);
-        alert("Impossible de récupérer votre position : " + err.message);
+        toast.error("Impossible d'accéder au GPS : " + err.message);
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
@@ -273,7 +275,7 @@ function RideSearchContent() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!departureAddress) {
-      alert("Veuillez indiquer un lieu de prise en charge.");
+      toast.error("Veuillez indiquer un lieu de prise en charge.");
       return;
     }
 

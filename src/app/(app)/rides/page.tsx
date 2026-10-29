@@ -25,6 +25,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { reverseGeocode } from "@/lib/geo";
+import { useToast } from "@/components/ui/ToastProvider";
 
 // Calcul de distance en mètres selon la formule de Haversine
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -72,6 +73,7 @@ function RideResultsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, token } = useAuth();
+  const { toast } = useToast();
 
   // Paramètres de recherche récupérés depuis l'URL
   const fromLat = parseFloat(searchParams.get("fromLat") || "48.8566");
@@ -221,7 +223,7 @@ function RideResultsContent() {
   // Envoi de la demande de réservation
   const handleConfirmBooking = async () => {
     if (!token) {
-      alert("Veuillez vous connecter pour réserver ce trajet.");
+      toast.info("Veuillez vous connecter pour réserver ce trajet.");
       router.push("/login");
       return;
     }
@@ -247,10 +249,10 @@ function RideResultsContent() {
       });
 
       setSelectedTrip(null);
-      alert("Votre demande a été envoyée au conducteur ! Vous serez alerté dès sa validation.");
+      toast.success("Demande envoyée au conducteur !");
       router.push("/trips?tab=passenger");
     } catch (err: any) {
-      alert("Erreur lors de la réservation : " + err.message);
+      toast.error(err.message || "Erreur lors de la réservation");
     } finally {
       setIsSubmitting(false);
     }
@@ -259,7 +261,7 @@ function RideResultsContent() {
   // Envoi du besoin de trajet ouvert (pré-rempli avec les infos de recherche)
   const handleConfirmNeed = async () => {
     if (!token) {
-      alert("Veuillez vous connecter pour publier votre besoin de trajet.");
+      toast.info("Veuillez vous connecter pour publier votre besoin.");
       router.push("/login");
       return;
     }
@@ -293,14 +295,14 @@ function RideResultsContent() {
       });
 
       setShowNeedModal(false);
-      alert("Votre demande de trajet a été enregistrée !");
+      toast.success("Demande de trajet enregistrée !");
       if (newRequestId) {
         router.push(`/requests/${newRequestId}`);
       } else {
         router.push("/needs?tab=my");
       }
     } catch (err: any) {
-      alert("Erreur lors de la publication : " + err.message);
+      toast.error(err.message || "Erreur lors de la publication");
     } finally {
       setIsSubmittingNeed(false);
     }

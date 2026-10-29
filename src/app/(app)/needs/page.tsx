@@ -10,6 +10,7 @@ import { BottomNav } from "@/components/navigation/BottomNav";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { reverseGeocode } from "@/lib/geo";
+import { useToast } from "@/components/ui/ToastProvider";
 import {
   Heart,
   Plus,
@@ -43,6 +44,7 @@ function DemandsContent() {
   const { user, token } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
   // Onglet : "my" (Mes demandes) ou "others" (Autres demandes)
   const initialTab = searchParams.get("tab") === "others" ? "others" : "my";
@@ -83,7 +85,7 @@ function DemandsContent() {
 
   const handleOpenScheduleModal = (need: any) => {
     if (!token) {
-      alert("Veuillez vous connecter pour proposer de récupérer ce passager.");
+      toast.info("Veuillez vous connecter pour proposer de récupérer ce passager.");
       router.push("/login");
       return;
     }
@@ -95,7 +97,7 @@ function DemandsContent() {
     if (!token || !selectedNeedForSchedule) return;
 
     if (!pickupDate || !pickupTime) {
-      alert("Veuillez choisir une date et une heure de départ.");
+      toast.error("Veuillez choisir une date et une heure de départ.");
       return;
     }
 
@@ -148,12 +150,12 @@ function DemandsContent() {
       });
 
       setSelectedNeedForSchedule(null);
-      alert(
-        `Trajet créé avec succès pour ${selectedNeedForSchedule.seatsRequested} place${selectedNeedForSchedule.seatsRequested > 1 ? "s" : ""} ! Le passager a été ajouté à votre véhicule.`
+      toast.success(
+        `Trajet créé ! Le passager a été ajouté à votre véhicule.`
       );
       router.push(`/trips/${tripId}`);
     } catch (err: any) {
-      alert("Erreur lors de la création du trajet : " + err.message);
+      toast.error(err.message || "Erreur lors de la création du trajet");
     } finally {
       setProcessingNeedId(null);
     }

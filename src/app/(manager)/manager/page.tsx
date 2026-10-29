@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
+import { useToast } from "@/components/ui/ToastProvider";
 import {
   Check,
   X,
@@ -22,6 +23,7 @@ import {
 
 export default function ManagerValidationPage() {
   const { user, token } = useAuth();
+  const { toast } = useToast();
   const pendingUsers = useQuery(api.users.listPendingUsers, token ? { token } : "skip");
   const reviewUser = useMutation(api.users.reviewUserStatus);
 
@@ -58,8 +60,9 @@ export default function ManagerValidationPage() {
     if (!token) return;
     try {
       await reviewUser({ token, userId: userId as any, status });
+      toast.success(status === "approved" ? "Membre validé !" : "Demande refusée.");
     } catch (err: any) {
-      alert("Erreur: " + err.message);
+      toast.error(err.message || "Erreur lors de la décision");
     }
   };
 
@@ -78,9 +81,10 @@ export default function ManagerValidationPage() {
         lng: churchCoords.lng,
       });
       setSaveSuccess(true);
+      toast.success("Adresse de l'église mise à jour !");
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
-      alert("Erreur lors de l'enregistrement : " + err.message);
+      toast.error(err.message || "Erreur lors de l'enregistrement");
     } finally {
       setIsSavingChurch(false);
     }

@@ -7,6 +7,7 @@ import { useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
+import { useToast } from "@/components/ui/ToastProvider";
 import {
   ChevronLeft,
   User,
@@ -66,6 +67,7 @@ function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.
 export default function EditProfilePage() {
   const router = useRouter();
   const { user, token } = useAuth();
+  const { toast } = useToast();
   const updateUserProfile = useMutation(api.users.updateUserProfile);
 
   // Références d'input file pour ouvrir la galerie
@@ -118,7 +120,7 @@ export default function EditProfilePage() {
       const compressedBase64 = await compressImage(file, 600, 600, 0.82);
       setAvatarUrl(compressedBase64);
     } catch (err) {
-      alert("Erreur lors de la sélection de la photo.");
+      toast.error("Erreur lors de la sélection de la photo.");
     } finally {
       setIsProcessingAvatar(false);
       if (e.target) e.target.value = "";
@@ -135,7 +137,7 @@ export default function EditProfilePage() {
       const compressedBase64 = await compressImage(file, 900, 600, 0.82);
       setVehiclePhotoUrl(compressedBase64);
     } catch (err) {
-      alert("Erreur lors de la sélection de la photo du véhicule.");
+      toast.error("Erreur lors de la sélection de la photo du véhicule.");
     } finally {
       setIsProcessingVehicle(false);
       if (e.target) e.target.value = "";
@@ -148,11 +150,11 @@ export default function EditProfilePage() {
     if (!token) return;
 
     if (!name.trim()) {
-      alert("Le nom est obligatoire.");
+      toast.error("Le nom est obligatoire.");
       return;
     }
     if (!phoneNumber.trim()) {
-      alert("Le numéro de téléphone est obligatoire.");
+      toast.error("Le numéro de téléphone est obligatoire.");
       return;
     }
 
@@ -175,10 +177,10 @@ export default function EditProfilePage() {
           : undefined,
       });
 
-      alert("Profil mis à jour !");
+      toast.success("Profil mis à jour !");
       router.push("/profile");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors de la mise à jour");
     } finally {
       setIsSaving(false);
     }

@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { useToast } from "@/components/ui/ToastProvider";
 import {
   ChevronLeft,
   Bell,
@@ -17,6 +18,7 @@ import {
 export default function ProfileSettingsPage() {
   const router = useRouter();
   const { user, token } = useAuth();
+  const { toast } = useToast();
   const updateUserPreferences = useMutation(api.users.updateUserPreferences);
 
   // Préférences locales avec 500m comme valeur initiale par défaut
@@ -62,7 +64,7 @@ export default function ProfileSettingsPage() {
 
     if (nextVal) {
       if (!("Notification" in window)) {
-        alert("Les notifications push ne sont pas supportées sur ce navigateur.");
+        toast.error("Les notifications push ne sont pas supportées sur ce navigateur.");
         return;
       }
 
@@ -71,13 +73,14 @@ export default function ProfileSettingsPage() {
         if (permission === "granted") {
           setPushEnabled(true);
           await savePreference("pushNotifications", true);
+          toast.success("Notifications activées !");
         } else {
-          alert("Autorisation de notification refusée dans votre navigateur.");
+          toast.error("Autorisation de notification refusée dans votre navigateur.");
           setPushEnabled(false);
           await savePreference("pushNotifications", false);
         }
       } catch (e) {
-        alert("Impossible de demander l'autorisation des notifications.");
+        toast.error("Impossible de demander l'autorisation des notifications.");
         setPushEnabled(false);
       }
     } else {
@@ -92,7 +95,7 @@ export default function ProfileSettingsPage() {
 
     if (nextVal) {
       if (!("geolocation" in navigator)) {
-        alert("La géolocalisation n'est pas supportée sur cet appareil.");
+        toast.error("La géolocalisation n'est pas supportée sur cet appareil.");
         return;
       }
 
@@ -102,11 +105,12 @@ export default function ProfileSettingsPage() {
           setIsLocating(false);
           setLocationSharing(true);
           savePreference("locationSharing", true);
+          toast.success("Localisation activée !");
         },
         (err) => {
           setIsLocating(false);
-          alert(
-            "Autorisation GPS refusée ou indisponible. Veuillez activer la localisation dans les réglages de votre appareil."
+          toast.error(
+            "Autorisation GPS refusée. Veuillez activer la localisation dans les réglages."
           );
           setLocationSharing(false);
           savePreference("locationSharing", false);

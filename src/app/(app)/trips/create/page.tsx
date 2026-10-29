@@ -7,6 +7,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
 import { reverseGeocode } from "@/lib/geo";
+import { useToast } from "@/components/ui/ToastProvider";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -27,6 +28,7 @@ function CreateTripContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, token } = useAuth();
+  const { toast } = useToast();
 
   // Étape courante : 1 = Carte & Itinéraire, 2 = Horaires & Places
   const [step, setStep] = useState<1 | 2>(1);
@@ -185,7 +187,7 @@ function CreateTripContent() {
   // Détection robuste de la position actuelle du conducteur
   const handleDetectCurrentLocation = () => {
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
-      alert("La géolocalisation n'est pas supportée par votre navigateur.");
+      toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
       return;
     }
 
@@ -224,11 +226,7 @@ function CreateTripContent() {
           (err2) => {
             setIsLocating(false);
             console.error("Échec géolocalisation complète :", err2.message);
-            alert(
-              "Impossible d'accéder au GPS (" +
-                err2.message +
-                "). Vérifiez les autorisations de votre navigateur ou saisissez votre adresse."
-            );
+            toast.error("Impossible d'accéder au GPS. Veuillez saisir votre adresse.");
           },
           { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
         );
@@ -405,11 +403,11 @@ function CreateTripContent() {
   // Passage à l'étape 2 (Validation des lieux)
   const handleGoToStep2 = () => {
     if (!departureAddress.trim()) {
-      alert("Veuillez renseigner un lieu de départ.");
+      toast.error("Veuillez renseigner un lieu de départ.");
       return;
     }
     if (!destinationAddress.trim()) {
-      alert("Veuillez renseigner un lieu de destination.");
+      toast.error("Veuillez renseigner un lieu de destination.");
       return;
     }
     setStep(2);
@@ -421,12 +419,12 @@ function CreateTripContent() {
     if (!token) return;
 
     if (!date) {
-      alert("Veuillez sélectionner la date du trajet.");
+      toast.error("Veuillez sélectionner la date du trajet.");
       return;
     }
 
     if (!time) {
-      alert("Veuillez sélectionner l'heure de départ.");
+      toast.error("Veuillez sélectionner l'heure de départ.");
       return;
     }
 
@@ -456,7 +454,7 @@ function CreateTripContent() {
 
       router.push(`/trips/success?id=${tripId}`);
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors de la création du trajet");
     } finally {
       setIsSubmitting(false);
     }

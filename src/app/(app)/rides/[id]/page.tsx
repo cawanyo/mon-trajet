@@ -7,6 +7,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useAuth } from "@/lib/auth-context";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
+import { useToast } from "@/components/ui/ToastProvider";
 import {
   ArrowLeft,
   Users,
@@ -50,6 +51,7 @@ function RideDetailsContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const { user, token } = useAuth();
+  const { toast } = useToast();
 
   const tripId = params.id as Id<"trips">;
 
@@ -97,7 +99,7 @@ function RideDetailsContent() {
   // Envoi de la demande de réservation
   const handleConfirmBooking = async () => {
     if (!token) {
-      alert("Veuillez vous connecter pour demander une place.");
+      toast.info("Veuillez vous connecter pour demander une place.");
       router.push("/login");
       return;
     }
@@ -123,10 +125,10 @@ function RideDetailsContent() {
       });
 
       setShowBookingModal(false);
-      alert("Votre demande de place a été envoyée au conducteur ! Vous serez alerté dès son acceptation.");
+      toast.success("Demande envoyée au conducteur !");
       router.push("/trips?tab=passenger");
     } catch (err: any) {
-      alert("Erreur lors de la réservation : " + err.message);
+      toast.error(err.message || "Erreur lors de la réservation");
     } finally {
       setIsSubmitting(false);
     }

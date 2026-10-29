@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -24,6 +25,7 @@ import {
 export default function ProfilePage() {
   const router = useRouter();
   const { user, token, logout } = useAuth();
+  const { confirm } = useToast();
 
   const profileStats = useQuery(
     api.users.getMyProfileStats,
@@ -31,7 +33,14 @@ export default function ProfilePage() {
   );
 
   const handleLogout = async () => {
-    if (window.confirm("Voulez-vous vraiment vous déconnecter ?")) {
+    const ok = await confirm({
+      title: "Déconnexion",
+      message: "Voulez-vous vraiment vous déconnecter de votre compte ?",
+      confirmText: "Se déconnecter",
+      cancelText: "Rester connecté",
+      destructive: true,
+    });
+    if (ok) {
       await logout();
       router.push("/login");
     }

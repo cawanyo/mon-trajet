@@ -33,12 +33,14 @@ import {
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { GpsChooserModal } from "@/components/navigation/GpsChooserModal";
 import { getOptimalWaypointsOrder } from "@/lib/geo";
+import { useToast } from "@/components/ui/ToastProvider";
 
 function TripDetailsContent() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const { user, token } = useAuth();
+  const { toast, confirm } = useToast();
   const tripId = params.id as Id<"trips">;
 
   const mapRef = useRef<any>(null);
@@ -371,8 +373,9 @@ function TripDetailsContent() {
         requestId,
         decision,
       });
+      toast.success(decision === "accepted" ? "Demande acceptée !" : "Demande refusée.");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors du traitement");
     } finally {
       setIsActionLoading(false);
     }
@@ -381,9 +384,15 @@ function TripDetailsContent() {
   // Annulation du trajet par le conducteur
   const handleCancelTrip = async () => {
     if (!token || !trip) return;
-    if (!confirm("Êtes-vous sûr de vouloir annuler ce trajet ? Tous les passagers seront notifiés.")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Annulation du trajet",
+      message: "Êtes-vous sûr de vouloir annuler ce trajet ? Tous les passagers seront notifiés.",
+      confirmText: "Oui, annuler",
+      cancelText: "Conserver",
+      destructive: true,
+    });
+    if (!ok) return;
+
     setIsActionLoading(true);
     try {
       await updateTripStatus({
@@ -391,10 +400,10 @@ function TripDetailsContent() {
         tripId: trip._id,
         status: "cancelled",
       });
-      alert("Trajet annulé avec succès.");
+      toast.success("Trajet annulé avec succès.");
       router.push("/trips");
     } catch (err: any) {
-      alert("Erreur : " + err.message);
+      toast.error(err.message || "Erreur lors de l'annulation");
     } finally {
       setIsActionLoading(false);
     }
@@ -453,8 +462,8 @@ function TripDetailsContent() {
   const handleSaveEdit = async () => {
     if (!token || !trip) return;
     if (editTotalSeats < occupiedSeats) {
-      alert(
-        `Impossible de définir ${editTotalSeats} place(s) : vous avez déjà accepté ${occupiedSeats} passager(s).`
+      toast.error(
+        `Impossible : vous avez déjà accepté ${occupiedSeats} passager(s).`
       );
       return;
     }
@@ -462,7 +471,7 @@ function TripDetailsContent() {
     try {
       const depTimestamp = new Date(editDepartureTime).getTime();
       if (isNaN(depTimestamp)) {
-        alert("Date ou heure invalide.");
+        toast.error("Date ou heure invalide.");
         return;
       }
       await updateTripMutation({
@@ -474,9 +483,9 @@ function TripDetailsContent() {
         notes: editNotes.trim() || undefined,
       });
       setShowEditModal(false);
-      alert("Trajet mis à jour avec succès !");
+      toast.success("Trajet mis à jour avec succès !");
     } catch (err: any) {
-      alert("Erreur lors de la modification : " + err.message);
+      toast.error(err.message || "Erreur lors de la modification");
     } finally {
       setIsActionLoading(false);
     }
@@ -488,27 +497,33 @@ function TripDetailsContent() {
       if (trip?.driver?.phoneNumber) {
         window.location.href = `tel:${trip.driver.phoneNumber}`;
       } else {
-        alert("Numéro de téléphone du conducteur non renseigné.");
+        toast.error("Numéro de téléphone du conducteur non renseigné.");
       }
     } else if (requestStatus === "pending") {
-      alert("Le numéro du conducteur sera accessible dès que votre demande sera acceptée.");
+      toast.info("Le numéro sera accessible dès acceptation de votre demande.");
     } else {
-      alert("Cette demande a été refusée par le conducteur.");
+      toast.error("Cette demande a été refusée par le conducteur.");
     }
   };
 
   // Annulation de la demande par le passager (libère les places chez le conducteur si elle était acceptée)
   const handleCancelPassengerRequest = async () => {
     if (!passengerRequest) {
-      alert("Aucune demande trouvée pour ce trajet.");
+      toast.error("Aucune demande trouvée pour ce trajet.");
       return;
     }
     const isAccepted = passengerRequest.status === "accepted";
-    const confirmMsg = isAccepted
-      ? "Votre réservation est confirmée. Êtes-vous sûr de vouloir l'annuler ? Les places seront libérées chez le conducteur."
-      : "Êtes-vous sûr de vouloir annuler votre demande de trajet ?";
+    const ok = await confirm({
+      title: "Annulation de réservation",
+      message: isAccepted
+        ? "Votre place est réservée. Confirmez-vous l'annulation ? Les places seront libérées."
+        : "Confirmez-vous l'annulation de votre demande de trajet ?",
+      confirmText: "Oui, annuler",
+      cancelText: "Conserver",
+      destructive: true,
+    });
 
-    if (!window.confirm(confirmMsg)) return;
+    if (!ok) return;
 
     setIsCancelling(true);
     try {
@@ -516,10 +531,10 @@ function TripDetailsContent() {
         token: token || undefined,
         requestId: passengerRequest._id,
       });
-      alert("Votre demande a bien été annulée.");
+      toast.success("Votre demande a bien été annulée.");
       router.push("/trips?tab=passenger");
     } catch (err: any) {
-      alert("Erreur lors de l'annulation : " + err.message);
+      toast.error(err.message || "Erreur lors de l'annulation");
     } finally {
       setIsCancelling(false);
     }
@@ -1582,7 +1597,7 @@ function TripDetailsContent() {
                     });
                   } else {
                     navigator.clipboard.writeText(window.location.href);
-                    alert("Lien du trajet copié dans le presse-papiers !");
+                    toast.success("Lien copié dans le presse-papiers !");
                   }
                   setShowSettingsModal(false);
                 }}
