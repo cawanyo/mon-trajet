@@ -17,6 +17,9 @@ import {
   Compass,
   CheckCircle2,
   AlertCircle,
+  RefreshCw,
+  Smartphone,
+  ShieldCheck,
 } from "lucide-react";
 
 export default function ProfileSettingsPage() {
@@ -159,37 +162,35 @@ export default function ProfileSettingsPage() {
       toast.success("Localisation autorisée et activée !");
     };
 
-    const onLocationError = (err: GeolocationPositionError) => {
-      console.warn("Erreur GPS lors de l'activation :", err.code, err.message);
-
-      // Si erreur 1 (PERMISSION_DENIED) : Safari bloque l'accès
-      if (err.code === 1) {
-        setIsLocating(false);
-        setLocationSharing(false);
-        savePreference("locationSharing", false);
-        setShowSafariLocationGuide(true);
-        return;
-      }
-
-      // Si timeout ou GPS faible : repli automatique vers localisation réseau (WiFi / antennes)
+    const tryLowAccuracyFallback = () => {
+      // Tentative en basse précision (réseau WiFi / antennes)
+      // Indispensable si "Position exacte" est désactivée dans iOS
       navigator.geolocation.getCurrentPosition(
         onLocationSuccess,
-        () => {
+        (secondErr) => {
+          console.warn("Échec GPS repli :", secondErr.code, secondErr.message);
           setIsLocating(false);
           setLocationSharing(false);
           savePreference("locationSharing", false);
-          toast.error("Signal GPS introuvable. Vérifiez que la localisation est active.");
+          setShowSafariLocationGuide(true);
         },
         { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
       );
     };
 
-    // Appel direct déclenché par le geste de l'utilisateur
-    navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, {
-      enableHighAccuracy: true,
-      timeout: 8000,
-      maximumAge: 0,
-    });
+    // 1ère tentative : haute précision (GPS)
+    navigator.geolocation.getCurrentPosition(
+      onLocationSuccess,
+      (err) => {
+        console.warn("Échec GPS haute précision (code " + err.code + "), bascule sur basse précision...", err.message);
+        tryLowAccuracyFallback();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
   };
 
   // Changement du rayon de détour via le slider (500m par défaut, debounce pour la sauvegarde)
@@ -420,8 +421,8 @@ export default function ProfileSettingsPage() {
 
       {/* GUIDE VISUEL SAFARI SI REFUSÉ (MODALE BASSE ÉPURÉE) */}
       {showSafariLocationGuide && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom-4 duration-200 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom-4 duration-200 space-y-3.5 max-h-[90dvh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setShowSafariLocationGuide(false)}
@@ -431,48 +432,71 @@ export default function ProfileSettingsPage() {
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-50 text-[#138872]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-50 text-[#138872] flex-shrink-0">
                 <Compass className="h-5 w-5" />
               </div>
-              <div>
+              <div className="pr-6">
                 <h3 className="font-bold text-sm text-slate-900">
-                  Autoriser la position dans Safari
+                  Débloquer la localisation
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Safari bloque actuellement la demande automatique
+                  Deux étapes requises par la sécurité Apple
                 </p>
               </div>
             </div>
 
-            <div className="space-y-2.5 text-xs text-slate-700 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-              <div className="flex items-start gap-2.5">
-                <span className="flex h-5 w-5 rounded-full bg-[#175276] text-white text-[10px] font-bold items-center justify-center flex-shrink-0 mt-0.5">
+            {/* Étape 1 : Rafraîchir Safari */}
+            <div className="rounded-2xl bg-slate-50 p-3.5 border border-slate-100 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 rounded-full bg-[#175276] text-white text-[10px] font-bold items-center justify-center flex-shrink-0">
                   1
                 </span>
-                <p className="leading-snug">
-                  Touchez le bouton <strong>« aA »</strong> (ou réglages) tout à gauche dans la barre d'adresse de Safari.
-                </p>
+                <span className="text-xs font-bold text-slate-800">
+                  Recharger la page après modification
+                </span>
               </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                Si vous venez de mettre <em>« Autoriser »</em> dans Safari (menu <strong>« aA »</strong> ➔ Réglages du site web), Safari n’applique le changement <strong>qu’après un rechargement</strong>.
+              </p>
+              <div className="pl-7 pt-1">
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-[#175276] text-xs font-bold border border-slate-200 shadow-2xs transition active:scale-95"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Recharger la page maintenant
+                </button>
+              </div>
+            </div>
 
-              <div className="flex items-start gap-2.5">
-                <span className="flex h-5 w-5 rounded-full bg-[#175276] text-white text-[10px] font-bold items-center justify-center flex-shrink-0 mt-0.5">
+            {/* Étape 2 : Réglages système iOS (Le piège fréquent) */}
+            <div className="rounded-2xl bg-amber-50/60 p-3.5 border border-amber-200/50 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 rounded-full bg-amber-600 text-white text-[10px] font-bold items-center justify-center flex-shrink-0">
                   2
                 </span>
-                <p className="leading-snug">
-                  Touchez <strong>« Réglages du site web »</strong>.
-                </p>
-              </div>
-
-              <div className="flex items-start gap-2.5">
-                <span className="flex h-5 w-5 rounded-full bg-[#175276] text-white text-[10px] font-bold items-center justify-center flex-shrink-0 mt-0.5">
-                  3
+                <span className="text-xs font-bold text-slate-800">
+                  Vérifier les réglages de l'iPhone
                 </span>
-                <p className="leading-snug">
-                  Réglez <strong>« Emplacement »</strong> sur <strong>« Autoriser »</strong> (ou Demander).
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                Si Safari bloque toujours, c'est qu'iOS interdit l'accès au niveau global :
+              </p>
+              <div className="pl-7 space-y-1.5 text-[11px] text-slate-700">
+                <p>
+                  • Ouvrez <strong>Réglages iPhone</strong> ➔ <strong>Confidentialité et sécurité</strong> ➔ <strong>Service de localisation</strong>.
+                </p>
+                <p>
+                  • Touchez <strong>Sites avec Safari</strong> (ou votre app) et cochez <strong>« Lorsque l'app est active »</strong>.
+                </p>
+                <p>
+                  • Activez l'option <strong>« Position exacte »</strong>.
                 </p>
               </div>
             </div>
 
+            {/* Boutons d'action */}
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
@@ -487,7 +511,7 @@ export default function ProfileSettingsPage() {
                   setShowSafariLocationGuide(false);
                   handleToggleLocation();
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-[#138872] hover:bg-[#0f6c5b] text-white font-bold text-xs transition shadow-sm"
+                className="flex-1 py-2.5 rounded-xl bg-[#138872] hover:bg-[#0f6c5b] text-white font-bold text-xs transition shadow-sm active:scale-95"
               >
                 Réessayer
               </button>
