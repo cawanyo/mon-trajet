@@ -113,15 +113,30 @@ export const getAdminStats = query({
   },
 });
 
-// 6. Gestion complète de tous les utilisateurs (ADMIN - PC)
+// 6. Gestion complète de tous les utilisateurs (MANAGER & ADMIN)
 export const listAllUsersAdmin = query({
   args: {
     token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.token);
-    if (!user || user.role !== "admin") {
-      throw new Error("Accès strictement réservé aux Administrateurs.");
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+      throw new Error("Accès strictement réservé aux Responsables et Administrateurs.");
+    }
+
+    return await ctx.db.query("users").order("desc").collect();
+  },
+});
+
+// 6b. Lister tous les membres (demandes de validation, membres actuels, membres bloqués)
+export const listMembersManager = query({
+  args: {
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx, args.token);
+    if (!user || (user.role !== "manager" && user.role !== "admin")) {
+      throw new Error("Accès réservé aux Responsables et Administrateurs.");
     }
 
     return await ctx.db.query("users").order("desc").collect();

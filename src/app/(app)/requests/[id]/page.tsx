@@ -44,17 +44,32 @@ function formatRelativeAdded(timestamp: number, currentTime: number) {
   return `Ajoutée il y a ${diffDays} j`;
 }
 
+// Formatage de la date lisible : "Dim. 26 oct. à 09:30"
+function formatDemandDate(timestamp: number) {
+  const d = new Date(timestamp);
+  const day = d.toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  const time = d.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${day.charAt(0).toUpperCase() + day.slice(1)} à ${time}`;
+}
+
 // Extraction des heures si la note contient "Créneau : 08h - 12h"
 function parseTimeSlotFromNote(note?: string) {
-  if (!note) return { startHour: 5, endHour: 24, cleanNote: "" };
+  if (!note) return { startHour: 5, endHour: 24, cleanNote: "", hasSlot: false };
   const match = note.match(/Créneau\s*:\s*(\d+)h\s*-\s*(\d+)h/i);
   if (match) {
     const startHour = parseInt(match[1], 10);
     const endHour = parseInt(match[2], 10);
     const cleanNote = note.replace(/\(?\s*Créneau\s*:\s*\d+h\s*-\s*\d+h\s*\)?/i, "").trim();
-    return { startHour, endHour, cleanNote };
+    return { startHour, endHour, cleanNote, hasSlot: true };
   }
-  return { startHour: 5, endHour: 24, cleanNote: note };
+  return { startHour: 5, endHour: 24, cleanNote: note, hasSlot: false };
 }
 
 const START_HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -88,6 +103,10 @@ function RequestDetailsContent() {
     const timer = setInterval(() => setCurrentTime(Date.now()), 30000);
     return () => clearInterval(timer);
   }, []);
+
+  const parsedSlot = useMemo(() => {
+    return parseTimeSlotFromNote(request?.note);
+  }, [request?.note]);
 
   // 1. Position du visualiseur (utilisateur connecté) pour calcul de distance et carte
   const [viewerLocation, setViewerLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -496,6 +515,35 @@ function RequestDetailsContent() {
       </div>
 
       <div className="relative z-10 max-w-md mx-auto p-4 space-y-3.5">
+        {/* BLOC DATE ET CRÉNEAU DE LA DEMANDE */}
+        <div className="rounded-3xl glass-card bg-white/95 backdrop-blur-xl p-4 border border-white/90 shadow-2xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#e6f4f0] text-[#138872] flex-shrink-0">
+                <Calendar className="h-4.5 w-4.5 stroke-[2.2]" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                  Date de la demande
+                </p>
+                <p className="text-xs sm:text-sm font-black text-[#1a3860]">
+                  {formatDemandDate(request.createdAt)}
+                </p>
+              </div>
+            </div>
+
+            <span className="text-[11px] font-semibold text-[#7d8fa5] bg-slate-100 px-2.5 py-1 rounded-full">
+              {addedRelativeText}
+            </span>
+          </div>
+
+          {parsedSlot.hasSlot && (
+            <div className="pt-2 border-t border-slate-100/90 flex items-center gap-2 text-xs font-bold text-[#175276]">
+              <Clock className="h-3.5 w-3.5 text-[#249e83] flex-shrink-0" />
+              <span>Créneau horaire souhaité : {parsedSlot.startHour}h - {parsedSlot.endHour}h</span>
+            </div>
+          )}
+        </div>
         {/* ======================================================== */}
         {/* 2. SI VISUALISÉ PAR UN AUTRE MEMBRE : PROFIL DU DEMANDEUR */}
         {/* ======================================================== */}

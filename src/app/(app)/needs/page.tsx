@@ -40,6 +40,35 @@ function formatRelativeAdded(timestamp: number, currentTime: number) {
   return `Ajoutée il y a ${diffDays} j`;
 }
 
+// Formatage de la date lisible : "Dim. 26 oct. à 09:30"
+function formatDemandDate(timestamp: number) {
+  const d = new Date(timestamp);
+  const day = d.toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  const time = d.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${day.charAt(0).toUpperCase() + day.slice(1)} à ${time}`;
+}
+
+// Extraction du créneau éventuel ("Créneau : 08h - 10h")
+function parseDemandTimeSlot(note?: string) {
+  if (!note) return null;
+  const match = note.match(/Créneau\s*:\s*(\d+)h\s*-\s*(\d+)h/i);
+  if (match) {
+    return {
+      startHour: parseInt(match[1], 10),
+      endHour: parseInt(match[2], 10),
+      label: `${match[1]}h - ${match[2]}h`,
+    };
+  }
+  return null;
+}
+
 function DemandsContent() {
   const { user, token } = useAuth();
   const router = useRouter();
@@ -269,23 +298,34 @@ function DemandsContent() {
             </div>
           ) : (
             <div className="space-y-3">
-              {demands.myDemands.map((demand) => (
-                <div
-                  key={demand._id}
-                  onClick={() => router.push(`/requests/${demand._id}`)}
-                  className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 transition-all cursor-pointer active:scale-[0.99] group"
-                >
-                  {/* Ligne Statut & Date d'ajout */}
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-[#138872] text-white shadow-2xs">
-                      <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                      <span>En attente</span>
-                    </span>
+              {demands.myDemands.map((demand) => {
+                const timeSlot = parseDemandTimeSlot(demand.note);
+                return (
+                  <div
+                    key={demand._id}
+                    onClick={() => router.push(`/requests/${demand._id}`)}
+                    className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 transition-all cursor-pointer active:scale-[0.99] group"
+                  >
+                    {/* Ligne Statut & Date d'ajout */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-[#138872] text-white shadow-2xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                        <span>En attente</span>
+                      </span>
 
-                    <span className="text-[11px] font-semibold text-[#7d8fa5]">
-                      {formatRelativeAdded(demand.createdAt, currentTime)}
-                    </span>
-                  </div>
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#175276]">
+                        <Calendar className="h-3.5 w-3.5 text-[#249e83]" />
+                        <span>{formatDemandDate(demand.createdAt)}</span>
+                      </div>
+                    </div>
+
+                    {/* Créneau souhaité si renseigné */}
+                    {timeSlot && (
+                      <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-50 text-[#175276] text-xs font-bold">
+                        <Clock className="h-3.5 w-3.5 text-[#249e83]" />
+                        <span>Créneau souhaité : {timeSlot.label}</span>
+                      </div>
+                    )}
 
                   {/* Itinéraire */}
                   <div className="space-y-1.5">
@@ -338,7 +378,8 @@ function DemandsContent() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )
         ) : (
@@ -357,81 +398,103 @@ function DemandsContent() {
             </div>
           ) : (
             <div className="space-y-3">
-              {demands.otherDemands.map((need) => (
-                <div
-                  key={need._id}
-                  onClick={() => router.push(`/requests/${need._id}`)}
-                  className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 cursor-pointer transition-all active:scale-[0.99] group"
-                >
-                  {/* Passager & Places */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 ring-2 ring-white shadow-xs overflow-hidden flex-shrink-0">
-                        {need.passenger?.avatarUrl ? (
-                          <img
-                            src={need.passenger.avatarUrl}
-                            alt={need.passenger.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-xs font-bold text-[#175276]">
-                            {need.passenger?.name?.charAt(0) || "P"}
-                          </span>
-                        )}
+              {demands.otherDemands.map((need) => {
+                const timeSlot = parseDemandTimeSlot(need.note);
+                return (
+                  <div
+                    key={need._id}
+                    onClick={() => router.push(`/requests/${need._id}`)}
+                    className="rounded-3xl glass-card bg-white/85 hover:bg-white/95 backdrop-blur-xl p-4 shadow-xs border border-white/90 space-y-3 cursor-pointer transition-all active:scale-[0.99] group"
+                  >
+                    {/* En-tête : Date visible de la demande */}
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-1.5 font-bold text-[#175276]">
+                        <Calendar className="h-3.5 w-3.5 text-[#249e83]" />
+                        <span>{formatDemandDate(need.createdAt)}</span>
                       </div>
-
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-[#1a3860] group-hover:text-blue-600 transition-colors">
-                            {need.passenger?.name || "Passager"}
-                          </span>
-                          <VerifiedTicker status={need.passenger?.status} size="xs" />
-                        </div>
-                        <p className="text-[11px] text-[#138872] font-semibold mt-0.5">
-                          Demande {need.seatsRequested} place{need.seatsRequested > 1 ? "s" : ""}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[#175276] group-hover:text-[#249e83] transition-colors">
-                      <span className="text-xs">Voir détails</span>
-                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-[#175276] transition-colors" />
-                    </div>
-                  </div>
-
-                  {/* Lieu de prise en charge & Remarque */}
-                  <div className="rounded-2xl bg-slate-50/90 p-3 text-xs space-y-1.5 border border-slate-100">
-                    <div className="flex items-center gap-1.5 text-slate-700">
-                      <MapPin className="h-3.5 w-3.5 text-[#138872] flex-shrink-0" />
-                      <span className="truncate font-medium">
-                        {need.pickupLocation.address}
+                      <span className="text-[11px] font-medium text-slate-400">
+                        {formatRelativeAdded(need.createdAt, currentTime)}
                       </span>
                     </div>
 
-                    {need.note && (
-                      <p className="text-[11px] text-slate-500 italic pl-5">
-                        "{need.note}"
-                      </p>
-                    )}
-                  </div>
+                    {/* Passager & Places */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 ring-2 ring-white shadow-xs overflow-hidden flex-shrink-0">
+                          {need.passenger?.avatarUrl ? (
+                            <img
+                              src={need.passenger.avatarUrl}
+                              alt={need.passenger.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs font-bold text-[#175276]">
+                              {need.passenger?.name?.charAt(0) || "P"}
+                            </span>
+                          )}
+                        </div>
 
-                  {/* Bouton pour conducteur : Proposer de le récupérer (ouvre le choix de l'heure) */}
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      disabled={processingNeedId === need._id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenScheduleModal(need);
-                      }}
-                      className="w-full py-2.5 rounded-2xl bg-[#138872] hover:bg-[#0f725f] text-white text-xs font-bold shadow-sm shadow-[#138872]/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    >
-                      <Car className="h-3.5 w-3.5" />
-                      <span>Proposer de le récupérer</span>
-                    </button>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-[#1a3860] group-hover:text-blue-600 transition-colors">
+                              {need.passenger?.name || "Passager"}
+                            </span>
+                            <VerifiedTicker status={need.passenger?.status} size="xs" />
+                          </div>
+                          <p className="text-[11px] text-[#138872] font-semibold mt-0.5">
+                            Demande {need.seatsRequested} place{need.seatsRequested > 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-[#175276] group-hover:text-[#249e83] transition-colors">
+                        <span className="text-xs">Voir détails</span>
+                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-[#175276] transition-colors" />
+                      </div>
+                    </div>
+
+                    {/* Créneau souhaité si renseigné */}
+                    {timeSlot && (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 text-[#175276] text-xs font-bold">
+                        <Clock className="h-3.5 w-3.5 text-[#249e83]" />
+                        <span>Créneau souhaité : {timeSlot.label}</span>
+                      </div>
+                    )}
+
+                    {/* Lieu de prise en charge & Remarque */}
+                    <div className="rounded-2xl bg-slate-50/90 p-3 text-xs space-y-1.5 border border-slate-100">
+                      <div className="flex items-center gap-1.5 text-slate-700">
+                        <MapPin className="h-3.5 w-3.5 text-[#138872] flex-shrink-0" />
+                        <span className="truncate font-medium">
+                          {need.pickupLocation.address}
+                        </span>
+                      </div>
+
+                      {need.note && (
+                        <p className="text-[11px] text-slate-500 italic pl-5">
+                          "{need.note}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bouton pour conducteur : Proposer de le récupérer (ouvre le choix de l'heure) */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        disabled={processingNeedId === need._id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenScheduleModal(need);
+                        }}
+                        className="w-full py-2.5 rounded-2xl bg-[#138872] hover:bg-[#0f725f] text-white text-xs font-bold shadow-sm shadow-[#138872]/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Car className="h-3.5 w-3.5" />
+                        <span>Proposer de le récupérer</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )
         )}

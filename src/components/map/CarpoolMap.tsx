@@ -62,6 +62,7 @@ export interface NeedItem {
   pickupLocation: LocationPoint;
   seatsRequested: number;
   note?: string;
+  createdAt?: number;
 }
 
 export interface UpcomingEscaleItem {
@@ -1174,6 +1175,11 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                   </div>
                   <p className="text-xs text-[#38917d] font-medium mt-0.5">
                     Demande {selectedNeed.seatsRequested} place(s)
+                    {selectedNeed.createdAt && (
+                      <span className="text-slate-400 font-normal">
+                        {" "}• Publiée à {formatHour(selectedNeed.createdAt)}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

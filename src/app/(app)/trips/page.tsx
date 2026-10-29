@@ -13,6 +13,7 @@ import {
   Users,
   Phone,
   Clock,
+  Calendar,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -462,10 +463,21 @@ function TripsContent() {
                     {/* En-tête : Date & Statut */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-[#175276]">
-                        <Clock className="h-3.5 w-3.5 text-[#249e83]" />
+                        {trip ? (
+                          <Clock className="h-3.5 w-3.5 text-[#249e83]" />
+                        ) : (
+                          <Calendar className="h-3.5 w-3.5 text-[#249e83]" />
+                        )}
                         <span>
-                          {trip ? formatCompactDate(trip.departureTime) : "Signal de recherche"}
+                          {trip
+                            ? formatCompactDate(trip.departureTime)
+                            : `Demande du ${formatCompactDate(request.createdAt)}`}
                         </span>
+                        {!trip && (
+                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-teal-50 text-[#138872] border border-teal-200">
+                            Libre
+                          </span>
+                        )}
                       </div>
 
                       <span

@@ -19,7 +19,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const isTripsActive = pathname === "/trips" || pathname.startsWith("/trips");
   const isNeedsActive = pathname === "/needs" || pathname.startsWith("/needs");
   const isProfileActive = pathname === "/profile";
-  const isManagerActive = pathname === "/manager";
+  const isManagerActive = pathname === "/manager" || pathname.startsWith("/manager");
 
   const navItems = [
     {
@@ -43,7 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     ...(userRole === "manager" || userRole === "admin"
       ? [
           {
-            label: "Validation",
+            label: "Gestion",
             href: "/manager",
             icon: ShieldCheck,
             isActive: isManagerActive,
