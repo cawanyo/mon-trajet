@@ -53,11 +53,19 @@ export async function POST(req: NextRequest) {
     const smtpPort = Number(process.env.SMTP_PORT || 587);
     const smtpSecure = process.env.SMTP_SECURE === "true" || smtpPort === 465;
     const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-    const smtpFrom = process.env.SMTP_FROM || `"Mon Trajet - Église" <${smtpUser || "contact@mon-trajet.fr"}>`;
+    // Nettoyer les espaces si l'utilisateur copie-colle "abcd efgh ijkl mnop" depuis Google
+    const rawPass = process.env.SMTP_PASS || "";
+    const smtpPass = rawPass.replace(/\s+/g, "");
+    const smtpFrom = process.env.SMTP_FROM || `"Mon Trajet - Église" <${smtpUser || "mon.trajet.mail@gmail.com"}>`;
+
+    const isConfigured =
+      smtpHost &&
+      smtpUser &&
+      smtpPass &&
+      !smtpPass.includes("A_REMPLACER");
 
     // Mode secours si le serveur SMTP n'est pas encore renseigné dans les .env
-    if (!smtpHost || !smtpUser || !smtpPass) {
+    if (!isConfigured) {
       console.warn("⚠️ [SMTP Non configuré] Les variables SMTP_HOST, SMTP_USER ou SMTP_PASS sont absentes.");
       console.info(`🔑 [Code Réinitialisation pour ${cleanEmail}] Code: ${code} | Lien: ${resetUrl}`);
 
