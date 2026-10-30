@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { NotificationBellButton } from "@/components/navigation/NotificationBellButton";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import {
   Settings,
@@ -63,8 +64,9 @@ export default function ProfilePage() {
         {/* Dégradé doux pour lisibilité */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
 
-        {/* Bouton Paramètres en haut à droite (roue crantée blanche dans cercle translucide) */}
-        <div className="absolute top-4 right-4 z-20">
+        {/* Boutons d'action en haut à droite : Notifications + Paramètres */}
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+          <NotificationBellButton variant="glass-dark" />
           <Link
             href="/profile/settings"
             className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition-all shadow-sm active:scale-95"

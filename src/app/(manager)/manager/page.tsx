@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { NotificationBellButton } from "@/components/navigation/NotificationBellButton";
 import { useRouter } from "next/navigation";
 import {
   Church,
@@ -86,12 +87,15 @@ export default function ManagerHubPage() {
             </div>
           </div>
 
-          {pendingCount > 0 && (
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500 text-white text-[11px] font-black shadow-xs animate-pulse">
-              <Clock className="h-3.5 w-3.5" />
-              <span>{pendingCount}</span>
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {pendingCount > 0 && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500 text-white text-[11px] font-black shadow-xs animate-pulse">
+                <Clock className="h-3.5 w-3.5" />
+                <span>{pendingCount}</span>
+              </span>
+            )}
+            <NotificationBellButton variant="glass-panel" />
+          </div>
         </div>
       </div>
 

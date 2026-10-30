@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { NotificationBellButton } from "@/components/navigation/NotificationBellButton";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { formatDemandTargetDate, parseDemandSlot } from "@/lib/dates";
 import {
@@ -168,19 +169,22 @@ function TripsContent() {
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 1rem))" }}
       >
         <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
               <h1 className="text-base font-black text-[#1a3860] tracking-tight">Mes Trajets</h1>
-              <p className="text-[11px] text-[#7d8fa5] font-medium">Gérez vos trajets et réservations</p>
+              <p className="text-[11px] text-[#7d8fa5] font-medium truncate">Gérez vos trajets et réservations</p>
             </div>
-            {/* Raccourci Proposer un trajet */}
-            <Link
-              href="/trips/create"
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-xs font-bold shadow-xs hover:opacity-95 active:scale-95 transition-all flex items-center gap-1"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Proposer</span>
-            </Link>
+            {/* Raccourci Proposer un trajet + Cloche de notifications */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Link
+                href="/trips/create"
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-xs font-bold shadow-xs hover:opacity-95 active:scale-95 transition-all flex items-center gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Proposer</span>
+              </Link>
+              <NotificationBellButton variant="glass-panel" />
+            </div>
           </div>
 
           {/* Onglets Rôle : Conducteur / Passager */}

@@ -25,6 +25,7 @@ import {
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { getOptimalWaypointsOrder, getDistanceMeters } from "@/lib/geo";
 import { GpsChooserModal } from "@/components/navigation/GpsChooserModal";
+import { NotificationBellButton } from "@/components/navigation/NotificationBellButton";
 import { useToast } from "@/components/ui/ToastProvider";
 import { formatDemandTargetDate, parseDemandSlot } from "@/lib/dates";
 
@@ -1028,70 +1029,75 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
             </div>
           </div>
 
-          {/* Bouton Filtre Circulaire */}
-          <div className="relative">
-            <button
-              onClick={() => setShowFilterMenu((v) => !v)}
-              className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all active:scale-95 ${
-                showFilterMenu || filter !== "all"
-                  ? "bg-[#e8f1fb] border-blue-200 text-[#2d6cb5]"
-                  : "bg-white/80 border-white/80 text-[#5a708a] hover:bg-white"
-              }`}
-              title="Filtrer la carte"
-            >
-              <SlidersHorizontal className="h-4 w-4 stroke-[2]" />
-            </button>
+          {/* Actions à droite : Filtre Circulaire + Bouton Notifications */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowFilterMenu((v) => !v)}
+                className={`flex h-9 w-9 items-center justify-center rounded-full border transition-all active:scale-95 ${
+                  showFilterMenu || filter !== "all"
+                    ? "bg-[#e8f1fb] border-blue-200 text-[#2d6cb5]"
+                    : "bg-white/80 border-slate-200/80 text-[#5a708a] hover:bg-white"
+                }`}
+                title="Filtrer la carte"
+              >
+                <SlidersHorizontal className="h-4 w-4 stroke-[2]" />
+              </button>
 
-            {/* Menu Popover filtre rapide */}
-            {showFilterMenu && (
-              <div className="absolute right-0 top-12 w-44 rounded-2xl bg-white dark:bg-slate-900 p-2 shadow-xl border border-slate-100 dark:border-slate-800 space-y-1 z-30">
-                <button
-                  onClick={() => {
-                    setFilter("all");
-                    setShowFilterMenu(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl ${
-                    filter === "all"
-                      ? "bg-[#e8f1fb] text-[#1f61b4] dark:bg-blue-950 dark:text-blue-400"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <span>Tout ({trips.length + needs.length})</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setFilter("trips");
-                    setShowFilterMenu(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl ${
-                    filter === "trips"
-                      ? "bg-[#e8f1fb] text-[#1f61b4] dark:bg-blue-950 dark:text-blue-400"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Car className="h-3.5 w-3.5 text-[#2168d9]" /> Voitures
-                  </span>
-                  <span className="text-[10px] text-slate-400">{trips.length}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setFilter("needs");
-                    setShowFilterMenu(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl ${
-                    filter === "needs"
-                      ? "bg-[#e8f5f1] text-[#138872] dark:bg-emerald-950 dark:text-emerald-400"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-[#138872]" /> Besoins
-                  </span>
-                  <span className="text-[10px] text-slate-400">{needs.length}</span>
-                </button>
-              </div>
-            )}
+              {/* Menu Popover filtre rapide */}
+              {showFilterMenu && (
+                <div className="absolute right-0 top-11 w-44 rounded-2xl bg-white dark:bg-slate-900 p-2 shadow-xl border border-slate-100 dark:border-slate-800 space-y-1 z-30">
+                  <button
+                    onClick={() => {
+                      setFilter("all");
+                      setShowFilterMenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl ${
+                      filter === "all"
+                        ? "bg-[#e8f1fb] text-[#1f61b4] dark:bg-blue-950 dark:text-blue-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span>Tout ({trips.length + needs.length})</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFilter("trips");
+                      setShowFilterMenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl ${
+                      filter === "trips"
+                        ? "bg-[#e8f1fb] text-[#1f61b4] dark:bg-blue-950 dark:text-blue-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Car className="h-3.5 w-3.5 text-[#2168d9]" /> Voitures
+                    </span>
+                    <span className="text-[10px] text-slate-400">{trips.length}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFilter("needs");
+                      setShowFilterMenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl ${
+                      filter === "needs"
+                        ? "bg-[#e8f5f1] text-[#138872] dark:bg-emerald-950 dark:text-emerald-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-[#138872]" /> Besoins
+                    </span>
+                    <span className="text-[10px] text-slate-400">{needs.length}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Bouton Notification */}
+            <NotificationBellButton variant="glass-panel" />
           </div>
         </div>
       </div>

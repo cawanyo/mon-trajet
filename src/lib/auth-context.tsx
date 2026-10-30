@@ -45,19 +45,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = "mon_trajet_session_token";
 const ONBOARDING_KEY = "has_seen_onboarding";
+const CACHED_USER_KEY = "mon_trajet_cached_user";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [cachedUser, setCachedUser] = useState<User | null>(null);
   const [isTokenLoaded, setIsTokenLoaded] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
-  // Initialisation du token depuis le stockage local
+  // Initialisation du token et de l'utilisateur en cache local pour affichage instantané
   useEffect(() => {
     try {
       const stored = localStorage.getItem(TOKEN_KEY);
       if (stored) {
         setToken(stored);
+      }
+      const storedUser = localStorage.getItem(CACHED_USER_KEY);
+      if (storedUser) {
+        setCachedUser(JSON.parse(storedUser));
       }
     } catch (e) {
       console.warn("Storage non disponible:", e);
@@ -68,6 +74,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Récupération de l'utilisateur courant via Convex
   const user = useQuery(api.auth.me, token ? { token } : "skip");
+
+  // Synchronisation du cache utilisateur dès que Convex répond
+  useEffect(() => {
+    if (user) {
+      setCachedUser(user as User);
+      try {
+        localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+      } catch (e) {}
+    }
+  }, [user]);
 
   // Mutations d'authentification
   const loginMutation = useMutation(api.auth.login);
@@ -125,19 +141,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {}
     }
     setToken(null);
+    setCachedUser(null);
     try {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(CACHED_USER_KEY);
     } catch (e) {}
     router.push("/login");
   };
 
-  const isLoading = !isTokenLoaded || (token !== null && user === undefined);
+  const effectiveUser = (user as User) ?? cachedUser;
+  const isLoading = !isTokenLoaded || (token !== null && effectiveUser === null);
 
   return (
     <AuthContext.Provider
       value={{
         token,
-        user: (user as User) || null,
+        user: effectiveUser,
         isLoading,
         login,
         register,

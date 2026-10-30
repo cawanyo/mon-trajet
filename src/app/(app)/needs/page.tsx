@@ -7,6 +7,7 @@ import Link from "next/link";
 import { api } from "../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { NotificationBellButton } from "@/components/navigation/NotificationBellButton";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { reverseGeocode } from "@/lib/geo";
@@ -207,24 +208,28 @@ function DemandsContent() {
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 1rem))" }}
       >
         <div className="max-w-md mx-auto space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
               <h1 className="text-base font-black text-[#1a3860] tracking-tight">
                 Demandes
               </h1>
-              <p className="text-[11px] text-[#7d8fa5] font-medium">
+              <p className="text-[11px] text-[#7d8fa5] font-medium truncate">
                 Demandes de covoiturage libres
               </p>
             </div>
 
-            {/* Bouton Chercher un trajet */}
-            <Link
-              href="/rides/search"
-              className="px-3 py-1.5 rounded-xl bg-[#175276] hover:bg-[#134260] text-white text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              <Search className="h-3.5 w-3.5" />
-              <span>Chercher un trajet</span>
-            </Link>
+            {/* Bouton Chercher un trajet + Cloche de notifications */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Link
+                href="/rides/search"
+                className="px-3 py-1.5 rounded-xl bg-[#175276] hover:bg-[#134260] text-white text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Chercher un trajet</span>
+                <span className="sm:hidden">Chercher</span>
+              </Link>
+              <NotificationBellButton variant="glass-panel" />
+            </div>
           </div>
 
           {/* LIGNE D'OPTIONS : Mes demandes / Autres demandes */}

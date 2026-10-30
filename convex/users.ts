@@ -173,11 +173,29 @@ export const getMyNotifications = query({
       .query("notifications")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .order("desc")
-      .take(20);
+      .take(30);
   },
 });
 
-// 9. Marquer les notifications comme lues
+// 8b. Récupérer le nombre de notifications non lues (optimisé pour badge header)
+export const getUnreadNotificationsCount = query({
+  args: {
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx, args.token);
+    if (!user) return 0;
+
+    const unread = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_unread", (q) => q.eq("userId", user._id).eq("isRead", false))
+      .collect();
+
+    return unread.length;
+  },
+});
+
+// 9. Marquer toutes les notifications comme lues
 export const markNotificationsAsRead = mutation({
   args: {
     token: v.optional(v.string()),
@@ -193,6 +211,23 @@ export const markNotificationsAsRead = mutation({
 
     for (const notif of unread) {
       await ctx.db.patch(notif._id, { isRead: true });
+    }
+  },
+});
+
+// 9b. Marquer une seule notification comme lue (lors du clic sur la notification)
+export const markSingleNotificationAsRead = mutation({
+  args: {
+    token: v.optional(v.string()),
+    notificationId: v.id("notifications"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx, args.token);
+    if (!user) return;
+
+    const notif = await ctx.db.get(args.notificationId);
+    if (notif && notif.userId === user._id && !notif.isRead) {
+      await ctx.db.patch(args.notificationId, { isRead: true });
     }
   },
 });

@@ -136,6 +136,8 @@ export default defineSchema({
       v.literal("trip_cancelled")
     ),
     relatedTripId: v.optional(v.id("trips")),
+    relatedRequestId: v.optional(v.id("requests")),
+    link: v.optional(v.string()),
     isRead: v.boolean(),
     createdAt: v.number(),
   })
