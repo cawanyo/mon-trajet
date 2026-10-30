@@ -29,12 +29,12 @@ export async function POST(req: NextRequest) {
       email: cleanEmail,
     });
 
-    // Si l'utilisateur n'existe pas en base, on retourne succès générique (protection énumération)
+    // Si l'utilisateur n'existe pas en base : informer clairement l'utilisateur
     if (!resetData || !resetData.exists) {
-      return NextResponse.json({
-        success: true,
-        message: "Si un compte est associé à cette adresse email, vous recevrez un message de réinitialisation d'ici quelques instants.",
-      });
+      return NextResponse.json(
+        { error: "Aucun compte n'a été trouvé avec cette adresse email. Veuillez vérifier votre saisie." },
+        { status: 404 }
+      );
     }
 
     const { token, code, userName } = resetData;

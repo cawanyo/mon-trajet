@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { hashPassword, generateToken } from "./auth";
 
 /**
- * 1. Génération d'un jeton et code de réinitialisation (15 minutes de validité)
+ * 1. Vérification de l'existence du compte et génération du code à 6 chiffres (15 minutes de validité)
  * Appelé depuis la route API Next.js /api/auth/forgot-password
  */
 export const requestResetToken = mutation({
@@ -13,15 +13,18 @@ export const requestResetToken = mutation({
   handler: async (ctx, args) => {
     const cleanEmail = args.email.trim().toLowerCase();
 
-    // 1. Recherche de l'utilisateur
+    // 1. Recherche stricte de l'utilisateur
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", cleanEmail))
       .first();
 
     if (!user) {
-      // Pour éviter l'énumération des emails, on renvoie succès sans renvoyer de données sensibles
-      return { success: true, exists: false };
+      return {
+        success: false,
+        exists: false,
+        error: "Aucun compte n'a été trouvé avec cette adresse email.",
+      };
     }
 
     // 2. Invalider les anciens tokens non utilisés pour cet email
@@ -62,7 +65,44 @@ export const requestResetToken = mutation({
 });
 
 /**
- * 2. Vérification de la validité d'un jeton ou code avant affichage du formulaire
+ * 2. Vérification spécifique du code à 6 chiffres saisi par l'utilisateur
+ */
+export const verifyResetCode = mutation({
+  args: {
+    email: v.string(),
+    code: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const cleanEmail = args.email.trim().toLowerCase();
+    const cleanCode = args.code.trim();
+
+    if (!cleanCode || cleanCode.length !== 6) {
+      throw new Error("Veuillez saisir un code de sécurité à 6 chiffres.");
+    }
+
+    const match = await ctx.db
+      .query("passwordResetTokens")
+      .withIndex("by_code", (q) => q.eq("code", cleanCode))
+      .first();
+
+    if (!match || match.email !== cleanEmail) {
+      throw new Error("Code de sécurité incorrect. Veuillez vérifier le code reçu par email.");
+    }
+
+    if (match.used) {
+      throw new Error("Ce code de sécurité a déjà été utilisé. Veuillez refaire une demande.");
+    }
+
+    if (match.expiresAt < Date.now()) {
+      throw new Error("Ce code de sécurité a expiré (validité de 15 minutes). Veuillez demander un nouveau code.");
+    }
+
+    return { valid: true };
+  },
+});
+
+/**
+ * 3. Vérification de la validité d'un jeton ou code (lecture)
  */
 export const verifyResetToken = query({
   args: {
@@ -99,7 +139,7 @@ export const verifyResetToken = query({
 });
 
 /**
- * 3. Validation finale et mise à jour sécurisée du mot de passe
+ * 4. Validation finale et enregistrement du nouveau mot de passe
  */
 export const completePasswordReset = mutation({
   args: {
@@ -136,7 +176,7 @@ export const completePasswordReset = mutation({
     }
 
     if (!resetRecord || resetRecord.used || resetRecord.expiresAt < Date.now()) {
-      throw new Error("Le lien ou code de réinitialisation est invalide ou a expiré. Veuillez refaire une demande.");
+      throw new Error("Le code de sécurité est invalide ou a expiré. Veuillez refaire une demande.");
     }
 
     // Trouver l'utilisateur associé
@@ -158,7 +198,7 @@ export const completePasswordReset = mutation({
     // Marquer le jeton de réinitialisation comme utilisé
     await ctx.db.patch(resetRecord._id, { used: true });
 
-    // Invalider les sessions antérieures pour forcer une connexion sécurisée
+    // Invalider les sessions antérieures
     const oldSessions = await ctx.db
       .query("sessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { MonTrajetLogo } from "@/components/ui/MonTrajetLogo";
 import { formatAuthError } from "@/lib/error-utils";
-import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle, HelpCircle, X, CheckCircle2, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -15,57 +15,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<"email" | "password" | "general" | null>(null);
-  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [isForgotLoading, setIsForgotLoading] = useState(false);
-  const [forgotSent, setForgotSent] = useState(false);
-  const [forgotError, setForgotError] = useState<string | null>(null);
-
-  const handleOpenForgot = () => {
-    setForgotEmail(email.trim());
-    setForgotSent(false);
-    setForgotError(null);
-    setIsForgotModalOpen(true);
-  };
-
-  const handleForgotSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setForgotError(null);
-
-    const cleanForgotEmail = forgotEmail.trim();
-    if (!cleanForgotEmail) {
-      setForgotError("Veuillez renseigner votre adresse email.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanForgotEmail)) {
-      setForgotError("Veuillez saisir une adresse email valide.");
-      return;
-    }
-
-    setIsForgotLoading(true);
-    try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanForgotEmail }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Erreur lors de l'envoi de l'email.");
-      }
-
-      setForgotSent(true);
-    } catch (err: any) {
-      setForgotError(
-        err.message || "Impossible d'envoyer l'email de réinitialisation. Veuillez vérifier votre connexion."
-      );
-    } finally {
-      setIsForgotLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +31,7 @@ export default function LoginPage() {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
-      setError("Veuillez saisir une adresse email valide (ex: jean@domaine.com).");
+      setError("Veuillez saisir une adresse email valide (ex : jean@domaine.com).");
       setErrorField("email");
       return;
     }
@@ -229,22 +178,21 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* Lien Mot de passe oublié */}
+          {/* Lien vers la NOUVELLE PAGE dédiée Mot de passe oublié */}
           <div className="text-right">
-            <button
-              type="button"
-              onClick={handleOpenForgot}
+            <Link
+              href="/forgot-password"
               className="text-xs font-semibold text-sky-700 hover:text-sky-800 hover:underline transition-colors cursor-pointer"
             >
               Mot de passe oublié ?
-            </button>
+            </Link>
           </div>
 
           {/* Bouton Primaire Glassy Dégradé Océan */}
           <button
             type="submit"
             disabled={isLoading}
-            className="mt-4 flex h-13 w-full items-center justify-center rounded-full bg-gradient-to-r from-sky-600 via-blue-600 to-sky-600 py-3.5 text-base font-bold text-white shadow-[0_10px_25px_-5px_rgba(2,132,199,0.5)] border border-white/30 backdrop-blur-md active:scale-[0.98] transition-all disabled:opacity-50"
+            className="mt-4 flex h-13 w-full items-center justify-center rounded-full bg-gradient-to-r from-sky-600 via-blue-600 to-sky-600 py-3.5 text-base font-bold text-white shadow-[0_10px_25px_-5px_rgba(2,132,199,0.5)] border border-white/30 backdrop-blur-md active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
           >
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -255,7 +203,7 @@ export default function LoginPage() {
         </form>
       </div>
 
-      {/* Footer avec lien vers inscription (SANS GOOGLE) */}
+      {/* Footer avec lien vers inscription */}
       <div className="relative z-10 text-center py-4">
         <p className="text-xs text-slate-500 font-medium">
           Pas encore de compte ?{" "}
@@ -267,120 +215,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-
-      {/* Modal interactif pour mot de passe oublié via SMTP */}
-      {isForgotModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in-95 duration-200">
-            <button
-              type="button"
-              onClick={() => setIsForgotModalOpen(false)}
-              className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 cursor-pointer"
-            >
-              <X className="h-4 w-4" />
-            </button>
-
-            {forgotSent ? (
-              <div className="text-center space-y-4 py-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mx-auto">
-                  <CheckCircle2 className="h-7 w-7" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Email envoyé !
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                    Un message contenant votre code de sécurité à 6 chiffres et votre lien de réinitialisation a été envoyé à <strong>{forgotEmail}</strong>.
-                  </p>
-                </div>
-
-                <div className="pt-2 space-y-2">
-                  <Link
-                    href={`/reset-password?email=${encodeURIComponent(forgotEmail)}`}
-                    onClick={() => setIsForgotModalOpen(false)}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-[#175276] py-3 text-xs font-bold text-white shadow-xs hover:bg-[#134260] active:scale-95 transition-all"
-                  >
-                    <span>Saisir le code & nouveau mot de passe</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => setForgotSent(false)}
-                    className="w-full text-xs font-semibold text-slate-500 hover:text-slate-700 py-1.5"
-                  >
-                    Renvoyer à une autre adresse
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300">
-                    <Mail className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                      Mot de passe oublié
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Recevez un lien et un code par email
-                    </p>
-                  </div>
-                </div>
-
-                <form onSubmit={handleForgotSubmit} className="space-y-3.5 mt-4">
-                  {forgotError && (
-                    <div className="rounded-xl bg-rose-50 p-2.5 border border-rose-200 text-xs text-rose-700 font-semibold flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 text-rose-600 flex-shrink-0 mt-0.5" />
-                      <span>{forgotError}</span>
-                    </div>
-                  )}
-
-                  <div className="rounded-2xl p-2.5 px-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Votre adresse email
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="nom@exemple.com"
-                      className="w-full mt-0.5 bg-transparent text-xs font-medium text-slate-900 dark:text-white focus:outline-none"
-                    />
-                  </div>
-
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Vous recevrez un code de sécurité à 6 chiffres valable pendant 15 minutes pour définir un nouveau mot de passe.
-                  </p>
-
-                  <div className="pt-2 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsForgotModalOpen(false)}
-                      className="flex-1 py-2.5 rounded-2xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isForgotLoading}
-                      className="flex-1 py-2.5 rounded-2xl bg-[#175276] text-white text-xs font-bold hover:bg-[#134260] active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      {isForgotLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <span>Envoyer l'email</span>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
