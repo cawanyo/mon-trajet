@@ -94,7 +94,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isTokenLoaded) return;
 
-    const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/register");
+    const isAuthRoute =
+      pathname.startsWith("/login") ||
+      pathname.startsWith("/register") ||
+      pathname.startsWith("/forgot-password") ||
+      pathname.startsWith("/reset-password");
     const isWelcomeRoute = pathname.startsWith("/welcome");
 
     if (!token) {
