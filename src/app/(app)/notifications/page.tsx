@@ -21,6 +21,8 @@ import {
   Loader2,
   BellRing,
   Sparkles,
+  Clock,
+  Navigation,
 } from "lucide-react";
 
 export default function NotificationsPage() {
@@ -104,6 +106,19 @@ export default function NotificationsPage() {
 
   const getIcon = (type: string) => {
     switch (type) {
+      case "trip_started":
+        return (
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-teal-100 text-[#138872]">
+            <Navigation className="h-5 w-5 stroke-[2.2]" />
+          </div>
+        );
+      case "trip_reminder_45":
+      case "trip_reminder_5":
+        return (
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+            <Clock className="h-5 w-5 stroke-[2.2]" />
+          </div>
+        );
       case "request_accepted":
         return (
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">

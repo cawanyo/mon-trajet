@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as requests from "../requests.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  crons: typeof crons;
   requests: typeof requests;
   seed: typeof seed;
   settings: typeof settings;

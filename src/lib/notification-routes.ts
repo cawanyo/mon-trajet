@@ -10,6 +10,10 @@ export interface NotificationRouteTarget {
  * (qu'il s'agisse d'un clic sur la notification système du téléphone ou dans l'app)
  */
 export function getNotificationTargetUrl(notif: NotificationRouteTarget): string {
+  // Le rappel à 5 min ouvre obligatoirement la page d'accueil
+  if (notif.type === "trip_reminder_5") {
+    return "/";
+  }
   if (notif.link && notif.link.trim().length > 0) {
     return notif.link;
   }

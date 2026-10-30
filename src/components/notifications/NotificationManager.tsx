@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
@@ -38,6 +38,17 @@ export function NotificationManager() {
     api.users.getMyNotifications,
     token ? { token } : "skip"
   );
+  const triggerRemindersCheck = useMutation(api.trips.checkAndSendTripReminders);
+
+  // Vérification périodique des rappels (45 min et 5 min) côté client
+  useEffect(() => {
+    if (!token) return;
+    triggerRemindersCheck({ token }).catch(() => {});
+    const interval = setInterval(() => {
+      triggerRemindersCheck({ token }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [token, triggerRemindersCheck]);
 
   useEffect(() => {
     if (!notifications || notifications.length === 0) return;

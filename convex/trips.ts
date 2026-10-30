@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getAuthenticatedUser } from "./auth";
 
@@ -470,6 +470,28 @@ export const startTrip = mutation({
     }
 
     await ctx.db.patch(args.tripId, updates);
+
+    // Notifier tous les passagers confirmés que le conducteur commence le trajet
+    const tripRequests = await ctx.db
+      .query("requests")
+      .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+      .collect();
+
+    for (const req of tripRequests) {
+      if (req.status === "accepted") {
+        await ctx.db.insert("notifications", {
+          userId: req.passengerId,
+          title: "Votre conducteur est en route ! 🚗",
+          body: `${user.name} a démarré le trajet. Préparez-vous à votre point de prise en charge.`,
+          type: "trip_started",
+          relatedTripId: trip._id,
+          link: `/trips/${trip._id}`,
+          isRead: false,
+          createdAt: Date.now(),
+        });
+      }
+    }
+
     return true;
   },
 });
@@ -734,5 +756,153 @@ export const getNextUpcomingTrip = query({
     );
 
     return allUpcoming[0] ?? null;
+  },
+});
+
+// Traitement des rappels automatiques (45 min et 5 min)
+async function processTripReminders(ctx: MutationCtx) {
+  const now = Date.now();
+  const plannedTrips = await ctx.db
+    .query("trips")
+    .withIndex("by_status", (q) => q.eq("status", "planned"))
+    .collect();
+
+  for (const trip of plannedTrips) {
+    // Si non démarré après 45 minutes, annulation automatique
+    if (now > trip.departureTime + 45 * 60 * 1000) {
+      await ctx.db.patch(trip._id, { status: "cancelled" });
+      continue;
+    }
+
+    const diffMs = trip.departureTime - now;
+
+    // Récupérer le nom du conducteur et l'adresse de destination
+    const driver = await ctx.db.get(trip.driverId);
+    const driverName = driver?.name || "Votre conducteur";
+    const dest = trip.destinationLocation.address || "l'église";
+
+    const requests = await ctx.db
+      .query("requests")
+      .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+      .collect();
+    const acceptedRequests = requests.filter((r) => r.status === "accepted");
+
+    // 1. Rappel à 45 minutes du trajet
+    if (diffMs <= 45 * 60 * 1000 && diffMs > 5 * 60 * 1000) {
+      // Pour le conducteur
+      const existingDriver45 = await ctx.db
+        .query("notifications")
+        .withIndex("by_user_trip", (q) =>
+          q.eq("userId", trip.driverId).eq("relatedTripId", trip._id)
+        )
+        .filter((q) => q.eq(q.field("type"), "trip_reminder_45"))
+        .first();
+
+      if (!existingDriver45) {
+        await ctx.db.insert("notifications", {
+          userId: trip.driverId,
+          title: "Rappel trajet : Départ dans 45 min",
+          body: `Votre trajet vers ${dest} est prévu dans 45 minutes.`,
+          type: "trip_reminder_45",
+          relatedTripId: trip._id,
+          link: `/trips/${trip._id}`,
+          isRead: false,
+          createdAt: now,
+        });
+      }
+
+      // Pour les passagers acceptés
+      for (const req of acceptedRequests) {
+        const existingPassenger45 = await ctx.db
+          .query("notifications")
+          .withIndex("by_user_trip", (q) =>
+            q.eq("userId", req.passengerId).eq("relatedTripId", trip._id)
+          )
+          .filter((q) => q.eq(q.field("type"), "trip_reminder_45"))
+          .first();
+
+        if (!existingPassenger45) {
+          await ctx.db.insert("notifications", {
+            userId: req.passengerId,
+            title: "Rappel trajet : Départ dans 45 min",
+            body: `Votre trajet avec ${driverName} vers ${dest} est prévu dans 45 minutes.`,
+            type: "trip_reminder_45",
+            relatedTripId: trip._id,
+            link: `/trips/${trip._id}`,
+            isRead: false,
+            createdAt: now,
+          });
+        }
+      }
+    }
+
+    // 2. Rappel à 5 minutes du trajet (ouvre la page d'accueil)
+    if (diffMs <= 5 * 60 * 1000 && diffMs >= -15 * 60 * 1000) {
+      // Pour le conducteur
+      const existingDriver5 = await ctx.db
+        .query("notifications")
+        .withIndex("by_user_trip", (q) =>
+          q.eq("userId", trip.driverId).eq("relatedTripId", trip._id)
+        )
+        .filter((q) => q.eq(q.field("type"), "trip_reminder_5"))
+        .first();
+
+      if (!existingDriver5) {
+        await ctx.db.insert("notifications", {
+          userId: trip.driverId,
+          title: "Départ imminent dans 5 minutes ! 🚗",
+          body: `Votre trajet vers ${dest} commence dans 5 minutes. Rendez-vous sur la carte d'accueil.`,
+          type: "trip_reminder_5",
+          relatedTripId: trip._id,
+          link: "/",
+          isRead: false,
+          createdAt: now,
+        });
+      }
+
+      // Pour les passagers acceptés
+      for (const req of acceptedRequests) {
+        const existingPassenger5 = await ctx.db
+          .query("notifications")
+          .withIndex("by_user_trip", (q) =>
+            q.eq("userId", req.passengerId).eq("relatedTripId", trip._id)
+          )
+          .filter((q) => q.eq(q.field("type"), "trip_reminder_5"))
+          .first();
+
+        if (!existingPassenger5) {
+          await ctx.db.insert("notifications", {
+            userId: req.passengerId,
+            title: "Départ imminent dans 5 minutes ! 🚗",
+            body: `Votre trajet avec ${driverName} débute dans 5 minutes. Rejoignez votre point de rendez-vous.`,
+            type: "trip_reminder_5",
+            relatedTripId: trip._id,
+            link: "/",
+            isRead: false,
+            createdAt: now,
+          });
+        }
+      }
+    }
+  }
+}
+
+// 13. Mutation interne déclenchée par le Cron Convex chaque minute
+export const checkAndSendTripRemindersInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await processTripReminders(ctx);
+    return true;
+  },
+});
+
+// 14. Mutation publique pour tick périodique côté client
+export const checkAndSendTripReminders = mutation({
+  args: {
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx) => {
+    await processTripReminders(ctx);
+    return true;
   },
 });

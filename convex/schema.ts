@@ -133,7 +133,10 @@ export default defineSchema({
       v.literal("request_accepted"),
       v.literal("request_rejected"),
       v.literal("user_approved"),
-      v.literal("trip_cancelled")
+      v.literal("trip_cancelled"),
+      v.literal("trip_started"),
+      v.literal("trip_reminder_45"),
+      v.literal("trip_reminder_5")
     ),
     relatedTripId: v.optional(v.id("trips")),
     relatedRequestId: v.optional(v.id("requests")),
@@ -142,7 +145,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_unread", ["userId", "isRead"]),
+    .index("by_user_unread", ["userId", "isRead"])
+    .index("by_user_trip", ["userId", "relatedTripId"]),
 
   // Paramètres de l'église (configurés par le Manager ou l'Admin)
   churchSettings: defineTable({
