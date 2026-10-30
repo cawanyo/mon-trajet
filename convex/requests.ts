@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { getAuthenticatedUser } from "./auth";
 import { syncTripAvailableSeats } from "./trips";
 
@@ -370,7 +371,7 @@ export const proposePickUpAndCreateTrip = mutation({
   },
 });
 
-// 5. Annuler une demande côté passager (libère automatiquement les places chez le conducteur)
+// 5. Annuler une demande côté passager (libère automatiquement les places chez le conducteur et la supprime de la vue du demandeur)
 export const cancelPassengerRequest = mutation({
   args: {
     token: v.optional(v.string()),
@@ -381,39 +382,48 @@ export const cancelPassengerRequest = mutation({
     if (!user) throw new Error("Authentification requise.");
 
     const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Demande introuvable.");
+    if (!request) {
+      return { success: true, message: "Demande déjà annulée ou introuvable." };
+    }
 
     // Seul le passager concerné ou un admin peut annuler sa demande
     if (request.passengerId !== user._id && user.role !== "admin") {
       throw new Error("Vous n'êtes pas autorisé à annuler cette demande.");
     }
 
-    if (request.status === "cancelled") {
-      return { success: true, message: "Demande déjà annulée." };
-    }
-
     const wasActive = request.status === "accepted" || request.status === "pending";
+    const tripId = request.tripId;
+    const seatsRequested = request.seatsRequested || 1;
 
-    // Mettre à jour le statut de la demande à "cancelled"
-    await ctx.db.patch(request._id, {
-      status: "cancelled",
-    });
+    // Supprimer la demande pour qu'elle disparaisse complètement chez le demandeur
+    await ctx.db.delete(request._id);
 
-    // Si la demande était active (en attente ou acceptée), libérer immédiatement les places chez le conducteur
-    if (wasActive && request.tripId) {
-      await syncTripAvailableSeats(ctx, request.tripId);
-      const trip = await ctx.db.get(request.tripId);
+    // Si la demande était active et rattachée à un trajet, libérer immédiatement les places chez le conducteur et le notifier
+    if (wasActive && tripId) {
+      await syncTripAvailableSeats(ctx, tripId);
+      const trip = await ctx.db.get(tripId);
       if (trip) {
-        // Notifier le conducteur du désistement et de la libération des places
+        // 1. Notifier le conducteur dans l'application
         await ctx.db.insert("notifications", {
           userId: trip.driverId,
           title: "Désistement d'un passager",
-          body: `${user.name} a annulé sa demande (${request.seatsRequested} place${request.seatsRequested > 1 ? "s" : ""} libérée${request.seatsRequested > 1 ? "s" : ""}).`,
+          body: `${user.name} a annulé sa réservation (${seatsRequested} place${seatsRequested > 1 ? "s" : ""} libérée${seatsRequested > 1 ? "s" : ""}).`,
           type: "trip_cancelled",
           relatedTripId: trip._id,
           isRead: false,
           createdAt: Date.now(),
         });
+
+        // 2. Notifier le conducteur via Web Push (notification réelle sur son téléphone)
+        const driver = await ctx.db.get(trip.driverId);
+        if (driver?.pushToken) {
+          await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
+            pushTokens: [driver.pushToken],
+            title: "Désistement d'un passager 🚗",
+            body: `${user.name} a annulé sa réservation (${seatsRequested} place${seatsRequested > 1 ? "s" : ""} libérée${seatsRequested > 1 ? "s" : ""}).`,
+            url: `/trips/${trip._id}`,
+          });
+        }
       }
     }
 
@@ -600,9 +610,12 @@ export const listDemands = query({
         .order("desc")
         .collect();
 
-      // N'afficher que les demandes libres (non associées) ou les demandes en attente de conducteur
+      // N'afficher que les demandes libres actives (non associées) ou les demandes en attente de conducteur
       const myDemandsRaw = myRequests.filter(
-        (r) => !r.tripId || r.status === "pending"
+        (r) =>
+          r.status !== "cancelled" &&
+          r.status !== "rejected" &&
+          (!r.tripId || r.status === "pending")
       );
 
       myDemands = await Promise.all(

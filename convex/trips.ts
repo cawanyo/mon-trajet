@@ -150,10 +150,12 @@ export const getTripDetails = query({
     const driver = await ctx.db.get(trip.driverId);
     if (!driver) return null;
 
-    const requests = await ctx.db
+    const rawRequests = await ctx.db
       .query("requests")
       .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
       .collect();
+
+    const requests = rawRequests.filter((r) => r.status !== "cancelled");
 
     const reservedSeats = requests
       .filter((r) => r.status === "accepted" || r.status === "pending")
@@ -275,10 +277,9 @@ export const listMyTrips = query({
       .order("desc")
       .collect();
 
-    // Filtre strict : Ne mettre dans les trajets que les réservations acceptées par un conducteur
-    // Les alertes et demandes non encore acceptées vont dans la page "Demandes"
+    // Filtre strict : Ne mettre dans les trajets que les réservations actives acceptées par un conducteur
     const acceptedRequestsOnly = passengerRequests.filter(
-      (req) => Boolean(req.tripId) && (req.status === "accepted" || req.status === "cancelled")
+      (req) => Boolean(req.tripId) && req.status === "accepted"
     );
 
     const enrichedPassengerTrips = await Promise.all(
@@ -337,18 +338,33 @@ export const updateTripStatus = mutation({
         .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
         .collect();
 
+      const pushTokens: string[] = [];
       for (const req of requests) {
         if (req.status === "accepted") {
           await ctx.db.insert("notifications", {
             userId: req.passengerId,
             title: "Trajet annulé",
-            body: `Le conducteur a annulé le trajet prévu.`,
+            body: `Le conducteur ${user.name} a annulé le trajet prévu.`,
             type: "trip_cancelled",
             relatedTripId: trip._id,
             isRead: false,
             createdAt: Date.now(),
           });
+
+          const passenger = await ctx.db.get(req.passengerId);
+          if (passenger?.pushToken) {
+            pushTokens.push(passenger.pushToken);
+          }
         }
+      }
+
+      if (pushTokens.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
+          pushTokens,
+          title: "Trajet annulé ❌",
+          body: `Le conducteur ${user.name} a annulé le trajet prévu.`,
+          url: "/trips",
+        });
       }
     }
   },
@@ -799,10 +815,12 @@ async function processTripReminders(ctx: MutationCtx) {
     const driverName = driver?.name || "Votre conducteur";
     const dest = trip.destinationLocation.address || "l'église";
 
-    const requests = await ctx.db
+    const rawRequests = await ctx.db
       .query("requests")
       .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
       .collect();
+
+    const requests = rawRequests.filter((r) => r.status !== "cancelled");
     const acceptedRequests = requests.filter((r) => r.status === "accepted");
 
     // 1. Rappel à 45 minutes du trajet

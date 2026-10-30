@@ -21,6 +21,7 @@ import {
   Compass,
   Check,
   Eye,
+  Route,
 } from "lucide-react";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { getOptimalWaypointsOrder, getDistanceMeters } from "@/lib/geo";
@@ -159,6 +160,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   const [selectedTrip, setSelectedTrip] = useState<TripItem | null>(null);
   const [selectedNeed, setSelectedNeed] = useState<NeedItem | null>(null);
   const [showGpsChooser, setShowGpsChooser] = useState(false);
+  const [isGpsPreviewMode, setIsGpsPreviewMode] = useState(false);
 
   // Position par défaut de la carte
   const [viewState, setViewState] = useState({
@@ -262,6 +264,11 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       (nextTrip.status === "active" || diffMs <= 5 * 60 * 1000) &&
       nextTrip.status !== "completed" &&
       nextTrip.status !== "cancelled"
+  );
+  // Le bouton "Y aller" n'est visible qu'à 45 min du trajet (ou si déjà actif)
+  const isWithin45Min = Boolean(
+    nextTrip &&
+      (nextTrip.status === "active" || diffMs <= 45 * 60 * 1000)
   );
 
   // Formatage du décompte affiché à côté du trajet
@@ -417,11 +424,23 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
 
   const handleDriverGoClick = () => {
     if (!nextTrip) return;
+    setIsGpsPreviewMode(false);
+    setShowGpsChooser(true);
+  };
+
+  const handleDriverPreviewRouteClick = () => {
+    if (!nextTrip) return;
+    setIsGpsPreviewMode(true);
     setShowGpsChooser(true);
   };
 
   const handleLaunchNavigation = async () => {
     if (!nextTrip || nextTrip.role !== "driver") return;
+
+    if (isGpsPreviewMode) {
+      // Consultation de l'itinéraire avant 45 min : ouvre le GPS mais ne démarre pas le trajet
+      return;
+    }
 
     const diffMs = nextTrip.departureTime - Date.now();
     if (diffMs < -45 * 60 * 1000 && nextTrip.status === "planned") {
@@ -1457,14 +1476,24 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                       </div>
                     </div>
 
-                    {/* Bouton "Y aller" pour lancer le trajet et le choix du GPS */}
-                    <button
-                      onClick={handleDriverGoClick}
-                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:from-[#255ea0] hover:to-[#0f6c5b] active:scale-98 text-white font-extrabold py-3.5 px-4 text-sm shadow-[0_8px_20px_rgba(45,108,181,0.28)] transition-all cursor-pointer"
-                    >
-                      <Navigation className="h-4 w-4 fill-white" />
-                      <span>Y aller</span>
-                    </button>
+                    {/* Bouton de navigation selon le timing : "Y aller" à <= 45 min, ou "Voir l'itinéraire" avant 45 min */}
+                    {isWithin45Min ? (
+                      <button
+                        onClick={handleDriverGoClick}
+                        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:from-[#255ea0] hover:to-[#0f6c5b] active:scale-98 text-white font-extrabold py-3.5 px-4 text-sm shadow-[0_8px_20px_rgba(45,108,181,0.28)] transition-all cursor-pointer"
+                      >
+                        <Navigation className="h-4 w-4 fill-white" />
+                        <span>Y aller</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleDriverPreviewRouteClick}
+                        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200/90 active:scale-98 text-slate-800 font-extrabold py-3.5 px-4 text-sm shadow-xs transition-all cursor-pointer"
+                      >
+                        <Route className="h-4 w-4 text-[#2d6cb5]" />
+                        <span>Voir l'itinéraire</span>
+                      </button>
+                    )}
                   </div>
                 )
               ) : (

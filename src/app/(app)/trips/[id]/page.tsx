@@ -27,6 +27,7 @@ import {
   MessageSquare,
   ShieldCheck,
   Navigation,
+  Route,
 } from "lucide-react";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { GpsChooserModal } from "@/components/navigation/GpsChooserModal";
@@ -52,6 +53,7 @@ function TripDetailsContent() {
   const respondToRequest = useMutation(api.requests.respondToRequest);
   const updateTripStatus = useMutation(api.trips.updateTripStatus);
   const updateTripMutation = useMutation(api.trips.updateTrip);
+  const startTripMutation = useMutation(api.trips.startTrip);
   const cancelPassengerRequest = useMutation(api.requests.cancelPassengerRequest);
 
   // État passager vs conducteur
@@ -59,6 +61,7 @@ function TripDetailsContent() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isCancelling, setIsCancelling] = useState(false);
   const [showGpsChooser, setShowGpsChooser] = useState(false);
+  const [isGpsPreviewMode, setIsGpsPreviewMode] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 15000);
@@ -69,6 +72,13 @@ function TripDetailsContent() {
   const isDriver = useMemo(() => {
     return Boolean(user?._id && trip?.driverId && user._id === trip.driverId);
   }, [user?._id, trip?.driverId]);
+
+  // Le bouton "Y aller" n'est visible qu'à 45 min du trajet (ou si déjà actif)
+  const isWithin45Min = useMemo(() => {
+    if (!trip) return false;
+    if (trip.status === "active") return true;
+    return trip.departureTime - currentTime <= 45 * 60 * 1000;
+  }, [trip, currentTime]);
 
   const viewAs = searchParams.get("as");
   const isViewingAsPassenger = useMemo(() => {
@@ -1256,13 +1266,33 @@ function TripDetailsContent() {
         >
           {/* BOUTON PRINCIPAL DE NAVIGATION GPS (APPROCHE HYBRIDE : GOOGLE MAPS / WAZE / APPLE PLANS) */}
           {!isTripCancelled && !isTripCompleted && (
-            <button
-              onClick={() => setShowGpsChooser(true)}
-              className="w-full h-11 sm:h-12 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2d6cb5]/25 active:scale-[0.98] transition-all cursor-pointer"
-            >
-              <Navigation className="h-4 w-4 fill-white" />
-              <span>Y aller (Lancer le GPS)</span>
-            </button>
+            isWithin45Min ? (
+              <button
+                onClick={() => {
+                  setIsGpsPreviewMode(false);
+                  setShowGpsChooser(true);
+                }}
+                className="w-full h-11 sm:h-12 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2d6cb5]/25 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <Navigation className="h-4 w-4 fill-white" />
+                <span>
+                  {trip.status === "active"
+                    ? "Continuer la navigation (GPS)"
+                    : "Y aller (Lancer le GPS)"}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsGpsPreviewMode(true);
+                  setShowGpsChooser(true);
+                }}
+                className="w-full h-11 sm:h-12 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90 font-extrabold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-xs"
+              >
+                <Route className="h-4 w-4 text-[#2d6cb5]" />
+                <span>Voir l'itinéraire</span>
+              </button>
+            )
           )}
 
           {/* BOUTONS D'ACTION INFÉRIEURS : MODIFIER & ANNULER */}
@@ -1591,6 +1621,10 @@ function TripDetailsContent() {
           waypoints={optimalAcceptedWaypoints}
           tripId={trip._id}
           onOpenInApp={async () => {
+            if (isGpsPreviewMode) {
+              // Consultation de l'itinéraire uniquement : ne déclenche JAMAIS le début du trajet
+              return;
+            }
             if (isDriver && trip.status === "planned") {
               const diffMs = trip.departureTime - Date.now();
               if (diffMs < -45 * 60 * 1000) {
@@ -1609,18 +1643,17 @@ function TripDetailsContent() {
               }
               if (shouldStart) {
                 try {
-                  await updateTripStatus({
+                  await startTripMutation({
                     token: token || undefined,
                     tripId: trip._id,
-                    status: "active",
                   });
                   toast.success("Trajet démarré !");
-                } catch (e) {
-                  console.warn("Erreur mise à jour statut actif :", e);
+                } catch (e: any) {
+                  console.warn("Erreur démarrage trajet :", e);
                 }
               }
             }
-            // Retour sur l'accueil demandé par l'utilisateur
+            // Retour sur l'accueil pour suivre le trajet
             router.push("/");
           }}
         />
