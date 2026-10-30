@@ -1,4 +1,4 @@
-"useStrictMode";
+"use client";
 import React from "react";
 import { Clock, ShieldCheck, HeartHandshake } from "lucide-react";
 

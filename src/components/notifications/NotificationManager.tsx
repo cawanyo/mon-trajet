@@ -43,10 +43,15 @@ export function NotificationManager() {
   // Vérification périodique des rappels (45 min et 5 min) côté client
   useEffect(() => {
     if (!token) return;
-    triggerRemindersCheck({ token }).catch(() => {});
-    const interval = setInterval(() => {
-      triggerRemindersCheck({ token }).catch(() => {});
-    }, 30000);
+    const runCheck = async () => {
+      try {
+        await triggerRemindersCheck({ token });
+      } catch (e) {
+        // Ignorer silencieusement les erreurs de timing réseau
+      }
+    };
+    runCheck();
+    const interval = setInterval(runCheck, 30000);
     return () => clearInterval(interval);
   }, [token, triggerRemindersCheck]);
 
@@ -68,52 +73,56 @@ export function NotificationManager() {
       if (!seenIdsRef.current.has(notif._id) && !notif.isRead) {
         seenIdsRef.current.add(notif._id);
 
-        const targetUrl = getNotificationTargetUrl(notif);
+        try {
+          const targetUrl = getNotificationTargetUrl(notif);
 
-        // A. Afficher la notification native sur le téléphone (Notification API / Service Worker)
-        if (
-          typeof window !== "undefined" &&
-          "Notification" in window &&
-          Notification.permission === "granted"
-        ) {
-          if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.ready
-              .then((reg) => {
-                reg.showNotification(notif.title, {
-                  body: notif.body,
-                  icon: "/icons/icon-192x192.png",
-                  badge: "/icons/icon-192x192.png",
-                  vibrate: [200, 100, 200],
-                  data: { url: targetUrl },
-                  tag: notif._id,
-                } as NotificationOptions);
-              })
-              .catch(() => {
-                // Fallback direct Notification
-                try {
-                  const n = new Notification(notif.title, {
+          // A. Afficher la notification native sur le téléphone (Notification API / Service Worker)
+          if (
+            typeof window !== "undefined" &&
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            if ("serviceWorker" in navigator) {
+              navigator.serviceWorker.ready
+                .then((reg) => {
+                  reg.showNotification(notif.title, {
                     body: notif.body,
                     icon: "/icons/icon-192x192.png",
+                    badge: "/icons/icon-192x192.png",
+                    vibrate: [200, 100, 200],
                     data: { url: targetUrl },
-                  });
-                  n.onclick = () => {
-                    window.focus();
-                    router.push(targetUrl);
-                    n.close();
-                  };
-                } catch (e) {}
-              });
+                    tag: notif._id,
+                  } as NotificationOptions);
+                })
+                .catch(() => {
+                  // Fallback direct Notification
+                  try {
+                    const n = new Notification(notif.title, {
+                      body: notif.body,
+                      icon: "/icons/icon-192x192.png",
+                      data: { url: targetUrl },
+                    });
+                    n.onclick = () => {
+                      window.focus();
+                      router.push(targetUrl);
+                      n.close();
+                    };
+                  } catch (e) {}
+                });
+            }
+
+            if ("vibrate" in navigator) {
+              try {
+                navigator.vibrate([200, 100, 200]);
+              } catch (e) {}
+            }
           }
 
-          if ("vibrate" in navigator) {
-            try {
-              navigator.vibrate([200, 100, 200]);
-            } catch (e) {}
-          }
+          // B. Alerte in-app fluide en bas de l'écran
+          toast.info(`${notif.title} : ${notif.body}`);
+        } catch (err) {
+          console.warn("Erreur affichage notification:", err);
         }
-
-        // B. Alerte in-app fluide en bas de l'écran
-        toast.info(`${notif.title} : ${notif.body}`);
       }
     }
   }, [notifications, router, toast]);

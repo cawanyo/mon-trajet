@@ -114,6 +114,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, isTokenLoaded, pathname, user, router]);
 
+  // Déconnexion automatique si le token en session n'est plus valide sur le serveur
+  useEffect(() => {
+    if (isTokenLoaded && token && user === null) {
+      setToken(null);
+      setCachedUser(null);
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(CACHED_USER_KEY);
+      } catch (e) {}
+      router.push("/login");
+    }
+  }, [isTokenLoaded, token, user, router]);
+
   const login = async (email: string, password: string) => {
     const res = await loginMutation({ email, password });
     setToken(res.token);
@@ -149,8 +162,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/login");
   };
 
-  const effectiveUser = (user as User) ?? cachedUser;
-  const isLoading = !isTokenLoaded || (token !== null && effectiveUser === null);
+  const effectiveUser = user !== undefined ? (user as User | null) : cachedUser;
+  const isLoading = !isTokenLoaded || (token !== null && user === undefined && cachedUser === null);
 
   return (
     <AuthContext.Provider
