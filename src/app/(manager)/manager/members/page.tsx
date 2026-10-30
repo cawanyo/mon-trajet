@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { useToast } from "@/components/ui/ToastProvider";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
   Search,
@@ -25,15 +25,27 @@ import {
   Shield,
 } from "lucide-react";
 
-export default function ManagerMembersPage() {
+function ManagerMembersContent() {
   const { user, token } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast, confirm } = useToast();
 
   const allUsers = useQuery(api.users.listMembersManager, token ? { token } : "skip");
   const reviewUser = useMutation(api.users.reviewUserStatus);
 
-  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected">("pending");
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected">(
+    initialTab === "approved" || initialTab === "rejected" ? initialTab : "pending"
+  );
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "pending" || tab === "approved" || tab === "rejected") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
   const [search, setSearch] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -389,5 +401,19 @@ export default function ManagerMembersPage() {
 
       <BottomNav userRole={user.role} />
     </div>
+  );
+}
+
+export default function ManagerMembersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-[#f4f7fb]">
+          <Loader2 className="h-7 w-7 animate-spin text-[#175276]" />
+        </div>
+      }
+    >
+      <ManagerMembersContent />
+    </Suspense>
   );
 }
