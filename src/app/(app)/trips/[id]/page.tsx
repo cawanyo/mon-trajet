@@ -1512,7 +1512,7 @@ function TripDetailsContent() {
                   type="datetime-local"
                   value={editDepartureTime}
                   onChange={(e) => setEditDepartureTime(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-bold text-slate-800 focus:bg-white focus:border-[#138872] focus:outline-none transition-all"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-800 focus:bg-white focus:border-[#138872] focus:outline-none transition-all"
                   required
                 />
               </div>

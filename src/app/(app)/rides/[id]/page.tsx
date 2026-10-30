@@ -315,7 +315,7 @@ function RideDetailsContent() {
                 setBookingSeats(1);
                 setShowBookingModal(true);
               }}
-              className="w-full h-13 rounded-full bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold shadow-lg shadow-[#1b7f80]/25 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              className="w-full p-3 rounded-xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold shadow-lg shadow-[#1b7f80]/25 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
               <span>Demander une place</span>
             </button>

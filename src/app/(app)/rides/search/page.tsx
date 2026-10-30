@@ -493,7 +493,7 @@ function RideSearchContent() {
                   value={date}
                   min={todayStr}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs font-semibold text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-none"
                   required
                 />
               </div>

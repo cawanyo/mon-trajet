@@ -238,7 +238,7 @@ export default function ProfilePage() {
         )}
 
         {/* 4. BOUTON DÉCONNEXION (PILULE ROSE/ROUGE TRÈS SOIGNÉE) */}
-        <div className="mt-5">
+        <div className="mt-5 mb-10">
           <button
             type="button"
             onClick={handleLogout}

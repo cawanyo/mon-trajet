@@ -22,6 +22,7 @@ function TripSuccessContent() {
   const { token } = useAuth();
   const tripId = searchParams.get("id") as Id<"trips"> | null;
 
+
   const trip = useQuery(
     api.trips.getTripDetails,
     tripId
@@ -89,13 +90,13 @@ function TripSuccessContent() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#f4f8fb] text-slate-800 flex flex-col justify-between p-5 select-none overflow-x-hidden">
+    <div className="relative h-screen bg-[#f4f8fb] text-slate-800 flex flex-col justify-between p-5 select-none overflow-x-hidden">
       {/* Halos d'ambiance pour accentuer l'effet verre dépoli */}
       <div className="pointer-events-none fixed -top-24 -right-24 h-96 w-96 rounded-full bg-teal-200/35 blur-3xl" />
       <div className="pointer-events-none fixed top-1/3 -left-28 h-80 w-80 rounded-full bg-blue-100/40 blur-3xl" />
       <div className="pointer-events-none fixed -bottom-20 right-10 h-72 w-72 rounded-full bg-emerald-100/30 blur-3xl" />
 
-      <div className="relative z-10 max-w-sm mx-auto w-full pt-10 sm:pt-14 space-y-8 flex-1 flex flex-col justify-center">
+      <div className="relative z-10 max-w-sm mx-auto w-full pt-5 sm:pt-14 space-y-8 flex-1 flex flex-col justify-center">
         {/* 1. GRAPHIQUE DE CONFIRMATION (CERCLE VERT GLOW & CONFETTIS) */}
         <div className="flex flex-col items-center text-center space-y-4">
           <div className="relative flex items-center justify-center">
@@ -175,11 +176,11 @@ function TripSuccessContent() {
       </div>
 
       {/* 3. BOUTONS D'ACTION INFÉRIEURS (IDENTIQUES AU TEMPLATE) */}
-      <div className="relative z-10 max-w-sm mx-auto w-full pt-6 pb-2 space-y-3">
+      <div className="relative z-10 max-w-sm mx-auto w-full pt-2 pb-2 space-y-3">
         {/* Bouton Principal : Voir mon trajet (redirige vers /trips/[id] avec la carte) */}
         <button
           onClick={() => router.push(`/trips/${trip._id}`)}
-          className="w-full p-2 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1b7f80]/25 hover:opacity-95 active:scale-[0.98] transition-all"
+          className="w-full p-2 rounded-xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1b7f80]/25 hover:opacity-95 active:scale-[0.98] transition-all"
         >
           <span>Voir mon trajet</span>
         </button>
@@ -187,7 +188,7 @@ function TripSuccessContent() {
         {/* Bouton Secondaire : Retour à l'accueil */}
         <button
           onClick={() => router.push("/")}
-          className="w-full p-2 rounded-2xl glass-card bg-white/85 hover:bg-white text-[#1a3860] text-sm font-bold flex items-center justify-center border border-slate-200/70 active:scale-[0.98] transition-all shadow-xs"
+          className="w-full p-2 rounded-xl glass-card bg-white/85 hover:bg-white text-[#1a3860] text-sm font-bold flex items-center justify-center border border-slate-200/70 active:scale-[0.98] transition-all shadow-xs"
         >
           <span>Retour à l'accueil</span>
         </button>
