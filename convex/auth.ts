@@ -3,7 +3,7 @@ import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 
 // Helper Web Crypto SHA-256 pour le hachage sécurisé du mot de passe
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password + "_mon_trajet_salt_2026");
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -12,7 +12,7 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 // Générateur de token de session aléatoire et sécurisé
-function generateToken(): string {
+export function generateToken(): string {
   return crypto.randomUUID() + "-" + Date.now().toString(36);
 }
 

@@ -51,6 +51,19 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_user", ["userId"]),
 
+  // Jetons et codes de réinitialisation de mot de passe (via SMTP)
+  passwordResetTokens: defineTable({
+    email: v.string(),
+    token: v.string(),
+    code: v.string(), // Code OTP à 6 chiffres
+    expiresAt: v.number(),
+    used: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_code", ["code"])
+    .index("by_email", ["email"]),
+
   // Trajets proposés par les conducteurs
   trips: defineTable({
     driverId: v.id("users"),
