@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/ToastProvider";
 import { getNotificationTargetUrl } from "@/lib/notification-routes";
+import { registerServiceWorkerAndSubscribe } from "@/lib/push-notifications";
 
 export function NotificationManager() {
   const { token, user } = useAuth();
@@ -39,6 +40,19 @@ export function NotificationManager() {
     token ? { token } : "skip"
   );
   const triggerRemindersCheck = useMutation(api.trips.checkAndSendTripReminders);
+  const updatePushToken = useMutation(api.users.updatePushToken);
+
+  // Synchronisation automatique de la souscription Web Push si autorisée
+  useEffect(() => {
+    if (!token) return;
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      registerServiceWorkerAndSubscribe().then((subStr) => {
+        if (subStr) {
+          updatePushToken({ token, pushToken: subStr }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }, [token, updatePushToken]);
 
   // Vérification périodique des rappels (45 min et 5 min) côté client
   useEffect(() => {

@@ -1,8 +1,9 @@
-// Helper d'enregistrement Web Push API pour PWA
+// Helper d'enregistrement Web Push API pour PWA et réveil du téléphone application fermée
+import { VAPID_PUBLIC_KEY } from "@/lib/vapid-keys";
 
 export async function registerServiceWorkerAndSubscribe(): Promise<string | null> {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    console.warn("Les notifications push ne sont pas supportées par ce navigateur.");
+  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    console.warn("Les notifications Web Push ne sont pas supportées par ce navigateur.");
     return null;
   }
 
@@ -11,28 +12,27 @@ export async function registerServiceWorkerAndSubscribe(): Promise<string | null
     await navigator.serviceWorker.ready;
 
     // Demande de permission
-    const permission = await Notification.requestPermission();
+    let permission = Notification.permission;
+    if (permission === "default") {
+      permission = await Notification.requestPermission();
+    }
     if (permission !== "granted") {
       return null;
     }
 
-    // Récupération ou création de la souscription
+    // Récupération ou création de la souscription Web Push avec la clé publique VAPID
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
-      // Clé publique VAPID (placeholder pour test ou à remplacer par la vôtre)
-      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (vapidPublicKey) {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-        });
-      }
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
     }
 
     return subscription ? JSON.stringify(subscription) : null;
   } catch (error) {
-    console.error("Erreur lors de l'enregistrement push :", error);
+    console.error("Erreur lors de l'enregistrement Web Push :", error);
     return null;
   }
 }

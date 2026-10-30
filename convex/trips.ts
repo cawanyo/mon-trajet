@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { getAuthenticatedUser } from "./auth";
 
 /**
@@ -477,6 +478,8 @@ export const startTrip = mutation({
       .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
       .collect();
 
+    const pushTokens: string[] = [];
+
     for (const req of tripRequests) {
       if (req.status === "accepted") {
         await ctx.db.insert("notifications", {
@@ -489,7 +492,22 @@ export const startTrip = mutation({
           isRead: false,
           createdAt: Date.now(),
         });
+
+        const passenger = await ctx.db.get(req.passengerId);
+        if (passenger?.pushToken) {
+          pushTokens.push(passenger.pushToken);
+        }
       }
+    }
+
+    // Réveil des téléphones via Web Push même si l'application est fermée
+    if (pushTokens.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
+        pushTokens,
+        title: "Votre conducteur est en route ! 🚗",
+        body: `${user.name} a démarré le trajet. Préparez-vous à votre point de prise en charge.`,
+        url: `/trips/${trip._id}`,
+      });
     }
 
     return true;
@@ -789,6 +807,8 @@ async function processTripReminders(ctx: MutationCtx) {
 
     // 1. Rappel à 45 minutes du trajet
     if (diffMs <= 45 * 60 * 1000 && diffMs > 5 * 60 * 1000) {
+      const pushTokens45: string[] = [];
+
       // Pour le conducteur
       const existingDriver45 = await ctx.db
         .query("notifications")
@@ -809,6 +829,10 @@ async function processTripReminders(ctx: MutationCtx) {
           isRead: false,
           createdAt: now,
         });
+
+        if (driver?.pushToken) {
+          pushTokens45.push(driver.pushToken);
+        }
       }
 
       // Pour les passagers acceptés
@@ -832,12 +856,28 @@ async function processTripReminders(ctx: MutationCtx) {
             isRead: false,
             createdAt: now,
           });
+
+          const pass = await ctx.db.get(req.passengerId);
+          if (pass?.pushToken) {
+            pushTokens45.push(pass.pushToken);
+          }
         }
+      }
+
+      if (pushTokens45.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
+          pushTokens: pushTokens45,
+          title: "Rappel trajet : Départ dans 45 min",
+          body: `Votre trajet vers ${dest} est prévu dans 45 minutes.`,
+          url: `/trips/${trip._id}`,
+        });
       }
     }
 
     // 2. Rappel à 5 minutes du trajet (ouvre la page d'accueil)
     if (diffMs <= 5 * 60 * 1000 && diffMs >= -15 * 60 * 1000) {
+      const pushTokens5: string[] = [];
+
       // Pour le conducteur
       const existingDriver5 = await ctx.db
         .query("notifications")
@@ -858,6 +898,10 @@ async function processTripReminders(ctx: MutationCtx) {
           isRead: false,
           createdAt: now,
         });
+
+        if (driver?.pushToken) {
+          pushTokens5.push(driver.pushToken);
+        }
       }
 
       // Pour les passagers acceptés
@@ -881,7 +925,21 @@ async function processTripReminders(ctx: MutationCtx) {
             isRead: false,
             createdAt: now,
           });
+
+          const pass = await ctx.db.get(req.passengerId);
+          if (pass?.pushToken) {
+            pushTokens5.push(pass.pushToken);
+          }
         }
+      }
+
+      if (pushTokens5.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
+          pushTokens: pushTokens5,
+          title: "Départ imminent dans 5 minutes ! 🚗",
+          body: `Votre trajet vers ${dest} débute dans 5 minutes.`,
+          url: "/",
+        });
       }
     }
   }

@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { useToast } from "@/components/ui/ToastProvider";
 import { getNotificationTargetUrl } from "@/lib/notification-routes";
+import { registerServiceWorkerAndSubscribe } from "@/lib/push-notifications";
 import {
   Bell,
   CheckCircle2,
@@ -23,6 +24,8 @@ import {
   Sparkles,
   Clock,
   Navigation,
+  Smartphone,
+  Share2,
 } from "lucide-react";
 
 export default function NotificationsPage() {
@@ -36,14 +39,21 @@ export default function NotificationsPage() {
   );
   const markAllAsRead = useMutation(api.users.markNotificationsAsRead);
   const markSingleAsRead = useMutation(api.users.markSingleNotificationAsRead);
+  const updatePushToken = useMutation(api.users.updatePushToken);
 
   // Statut des permissions de notifications du téléphone
   const [permissionState, setPermissionState] = useState<NotificationPermission>("default");
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [isIosBrowser, setIsIosBrowser] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       setPermissionState(Notification.permission);
+    }
+    if (typeof navigator !== "undefined") {
+      const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isStandalone = (window.navigator as any).standalone === true;
+      setIsIosBrowser(isIos && !isStandalone);
     }
   }, []);
 
@@ -55,21 +65,27 @@ export default function NotificationsPage() {
 
     setIsRequestingPermission(true);
     try {
-      const perm = await Notification.requestPermission();
+      const subStr = await registerServiceWorkerAndSubscribe();
+      if (subStr && token) {
+        await updatePushToken({ token, pushToken: subStr });
+      }
+
+      const perm = Notification.permission;
       setPermissionState(perm);
+
       if (perm === "granted") {
-        toast.success("Notifications activées sur votre téléphone !");
+        toast.success("Notifications Web Push activées même application fermée !");
         // Notification test
         if ("serviceWorker" in navigator) {
           const reg = await navigator.serviceWorker.ready;
           reg.showNotification("Mon Trajet Église", {
-            body: "Les notifications mobiles sont prêtes pour vos trajets !",
+            body: "Les alertes mobiles sont prêtes, même application fermée !",
             icon: "/icons/icon-192x192.png",
             badge: "/icons/icon-192x192.png",
           });
         }
       } else {
-        toast.info("Notifications refusées ou bloquées dans vos paramètres de navigateur.");
+        toast.info("Notifications non autorisées. Veuillez vérifier les paramètres du navigateur.");
       }
     } catch (err) {
       toast.error("Impossible d'activer les notifications");
@@ -237,6 +253,23 @@ export default function NotificationsPage() {
               )}
               <span>Activer</span>
             </button>
+          </div>
+        )}
+
+        {/* Astuce iPhone : Nécessite l'ajout sur l'écran d'accueil pour le Web Push fermé */}
+        {isIosBrowser && (
+          <div className="rounded-2xl glass-card bg-amber-500/10 border border-amber-200/90 p-3.5 flex items-start gap-3 shadow-xs">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs mt-0.5">
+              <Smartphone className="h-4 w-4" />
+            </div>
+            <div className="flex-1 text-xs">
+              <p className="font-bold text-[#1a3860]">
+                Astuce iPhone / iPad :
+              </p>
+              <p className="text-[11px] text-[#5a708a] mt-0.5 leading-snug">
+                Pour recevoir les alertes quand votre téléphone est verrouillé ou fermé, appuyez sur <Share2 className="inline h-3.5 w-3.5 mx-0.5 text-blue-600" /> <strong>Partager</strong> dans Safari, puis <strong>« Sur l'écran d'accueil »</strong>.
+              </p>
+            </div>
           </div>
         )}
 
