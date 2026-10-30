@@ -332,9 +332,15 @@ function DemandsContent() {
                         )}
                       </div>
 
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-[#138872] border border-emerald-200">
-                        En attente
-                      </span>
+                      {demand.trip && demand.driver ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#175276] border border-blue-200 truncate max-w-[130px]">
+                          Transmis à {demand.driver.name}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-[#138872] border border-emerald-200">
+                          En attente
+                        </span>
+                      )}
                     </div>
 
                     {/* Ligne 2 : Itinéraire sobre en une ligne */}

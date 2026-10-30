@@ -117,6 +117,7 @@ export default defineSchema({
     desiredDate: v.optional(v.string()), // Date cible "YYYY-MM-DD" pour laquelle le trajet est demandé
     desiredTimeSlot: v.optional(v.string()), // Créneau souhaité ex: "08h - 10h"
     note: v.optional(v.string()),
+    reminder30MinSent: v.optional(v.boolean()), // Notification 30 min avant expiration envoyée
     createdAt: v.number(),
   })
     .index("by_passenger", ["passengerId"])
@@ -136,7 +137,9 @@ export default defineSchema({
       v.literal("trip_cancelled"),
       v.literal("trip_started"),
       v.literal("trip_reminder_45"),
-      v.literal("trip_reminder_5")
+      v.literal("trip_reminder_5"),
+      v.literal("demand_reminder_30"),
+      v.literal("demand_expired")
     ),
     relatedTripId: v.optional(v.id("trips")),
     relatedRequestId: v.optional(v.id("requests")),

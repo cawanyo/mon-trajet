@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
@@ -794,14 +795,56 @@ function RequestDetailsContent() {
               </button>
             </div>
 
-            <div className="rounded-2xl bg-[#eef8fd] border border-[#d6effd] p-3.5 flex items-center gap-3 shadow-2xs">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white flex-shrink-0 shadow-xs">
-                <MapPin className="h-4 w-4 fill-white" />
+            {request.trip && request.driver ? (
+              <div className="rounded-2xl bg-[#eef8fd] border border-blue-200 p-3.5 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#175276]">
+                    Trajet correspondant trouvé
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#175276]">
+                    Transmise au conducteur
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 ring-2 ring-white shadow-xs overflow-hidden flex-shrink-0">
+                    {request.driver.avatarUrl ? (
+                      <img
+                        src={request.driver.avatarUrl}
+                        alt={request.driver.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xs font-bold text-[#175276]">
+                        {request.driver.name?.charAt(0) || "C"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[#1a3860] truncate">
+                      {request.driver.name}
+                    </p>
+                    <p className="text-[11px] text-slate-500 truncate">
+                      Départ prévu à {new Date(request.trip.departureTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/trips/${request.trip._id}`}
+                    className="px-3 py-1.5 rounded-xl bg-[#175276] text-white text-[11px] font-bold shadow-xs hover:opacity-95 transition-all flex-shrink-0"
+                  >
+                    Voir
+                  </Link>
+                </div>
               </div>
-              <p className="text-xs font-medium text-[#175276] leading-relaxed">
-                Vous serez notifié dès qu'un conducteur acceptera votre demande.
-              </p>
-            </div>
+            ) : (
+              <div className="rounded-2xl bg-[#eef8fd] border border-[#d6effd] p-3.5 flex items-center gap-3 shadow-2xs">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white flex-shrink-0 shadow-xs">
+                  <MapPin className="h-4 w-4 fill-white" />
+                </div>
+                <p className="text-xs font-medium text-[#175276] leading-relaxed">
+                  Vous serez notifié dès qu'un conducteur acceptera votre demande.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           /* VUE CONDUCTEUR (AUTRE MEMBRE) : CHOISIR L'HEURE ET CRÉER LE TRAJET */

@@ -130,8 +130,15 @@ export default function NotificationsPage() {
         );
       case "trip_reminder_45":
       case "trip_reminder_5":
+      case "demand_reminder_30":
         return (
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+            <Clock className="h-5 w-5 stroke-[2.2]" />
+          </div>
+        );
+      case "demand_expired":
+        return (
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
             <Clock className="h-5 w-5 stroke-[2.2]" />
           </div>
         );

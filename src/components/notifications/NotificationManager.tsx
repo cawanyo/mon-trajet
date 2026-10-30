@@ -40,6 +40,7 @@ export function NotificationManager() {
     token ? { token } : "skip"
   );
   const triggerRemindersCheck = useMutation(api.trips.checkAndSendTripReminders);
+  const triggerOpenDemandsCheck = useMutation(api.requests.processOpenDemandsLifecycleMutation);
   const updatePushToken = useMutation(api.users.updatePushToken);
 
   // Synchronisation automatique de la souscription Web Push si autorisée
@@ -54,12 +55,15 @@ export function NotificationManager() {
     }
   }, [token, updatePushToken]);
 
-  // Vérification périodique des rappels (45 min et 5 min) côté client
+  // Vérification périodique des rappels trajets et du cycle de vie des demandes ouvertes
   useEffect(() => {
     if (!token) return;
     const runCheck = async () => {
       try {
-        await triggerRemindersCheck({ token });
+        await Promise.all([
+          triggerRemindersCheck({ token }).catch(() => {}),
+          triggerOpenDemandsCheck({ token }).catch(() => {}),
+        ]);
       } catch (e) {
         // Ignorer silencieusement les erreurs de timing réseau
       }
@@ -67,7 +71,7 @@ export function NotificationManager() {
     runCheck();
     const interval = setInterval(runCheck, 30000);
     return () => clearInterval(interval);
-  }, [token, triggerRemindersCheck]);
+  }, [token, triggerRemindersCheck, triggerOpenDemandsCheck]);
 
   useEffect(() => {
     if (!notifications || notifications.length === 0) return;

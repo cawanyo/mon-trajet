@@ -23,6 +23,12 @@ export function getNotificationTargetUrl(notif: NotificationRouteTarget): string
   if (notif.relatedRequestId) {
     return `/requests/${notif.relatedRequestId}`;
   }
+  if (notif.type === "demand_reminder_30") {
+    return notif.relatedRequestId ? `/requests/${notif.relatedRequestId}` : "/needs?tab=my";
+  }
+  if (notif.type === "demand_expired") {
+    return "/needs?tab=my";
+  }
   if (notif.type === "request_rejected") {
     return "/needs";
   }

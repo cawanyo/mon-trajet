@@ -1,8 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { getAuthenticatedUser } from "./auth";
 import { syncTripAvailableSeats } from "./trips";
+import {
+  matchOpenDemandWithPlannedTrips,
+  processOpenDemandsLifecycle,
+} from "./matching";
 
 // 1. Créer une demande de place ou un signal de besoin ouvert
 export const createRequest = mutation({
@@ -105,7 +109,7 @@ export const createRequest = mutation({
     }
 
     // Cas "Signal de besoin" ouvert sur la carte
-    return await ctx.db.insert("requests", {
+    const requestId = await ctx.db.insert("requests", {
       passengerId: user._id,
       pickupLocation: sanitizedPickup,
       destinationLocation: args.destinationLocation,
@@ -116,6 +120,15 @@ export const createRequest = mutation({
       note: args.note,
       createdAt: Date.now(),
     });
+
+    // Rechercher immédiatement si un trajet planifié correspond (jour, heure, détour)
+    try {
+      await matchOpenDemandWithPlannedTrips(ctx, requestId);
+    } catch (e) {
+      console.warn("Erreur auto-matching trajet existant :", e);
+    }
+
+    return requestId;
   },
 });
 
@@ -649,5 +662,26 @@ export const listDemands = query({
       myDemands,
       otherDemands,
     };
+  },
+});
+
+// 9. Traitement du cycle de vie des demandes ouvertes (Cron / périodique)
+// - À 30 min de la fin : notification pour garder espoir
+// - 30 min après la fin : suppression de la demande et notification d'invalidation
+export const processOpenDemandsLifecycleInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await processOpenDemandsLifecycle(ctx);
+    return true;
+  },
+});
+
+export const processOpenDemandsLifecycleMutation = mutation({
+  args: {
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx) => {
+    await processOpenDemandsLifecycle(ctx);
+    return true;
   },
 });

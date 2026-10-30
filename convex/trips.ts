@@ -3,6 +3,7 @@ import { mutation, query, internalMutation, MutationCtx } from "./_generated/ser
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { getAuthenticatedUser } from "./auth";
+import { matchTripWithOpenDemands } from "./matching";
 
 /**
  * Recalcule et synchronise le nombre de places disponibles sur un trajet :
@@ -74,6 +75,13 @@ export const createTrip = mutation({
       notes: args.notes,
       createdAt: Date.now(),
     });
+
+    // Associer automatiquement les demandes libres compatibles (jour, heure, détour) et les envoyer au conducteur
+    try {
+      await matchTripWithOpenDemands(ctx, tripId);
+    } catch (e) {
+      console.warn("Erreur auto-matching demandes :", e);
+    }
 
     return tripId;
   },
