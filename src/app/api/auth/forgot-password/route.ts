@@ -15,15 +15,12 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
-    if (!convexUrl) {
-      console.error("[ForgotPassword] NEXT_PUBLIC_CONVEX_URL manquant");
-      return NextResponse.json(
-        { error: "Configuration serveur incomplète." },
-        { status: 500 }
-      );
-    }
+    // Résolution de l'URL Convex avec fallback de production garanti
+    const convexUrl =
+      process.env.NEXT_PUBLIC_CONVEX_URL ||
+      process.env.CONVEX_URL ||
+      "https://spotted-loris-303.eu-west-1.convex.cloud";
 
     const convex = new ConvexHttpClient(convexUrl);
 
@@ -48,46 +45,58 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${hostHeader}`;
     const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
-    // 2. Configuration SMTP
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpPort = Number(process.env.SMTP_PORT || 587);
+    // 2. Configuration SMTP Gmail / Générique
+    const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+    const smtpPort = Number(process.env.SMTP_PORT || 465);
     const smtpSecure = process.env.SMTP_SECURE === "true" || smtpPort === 465;
-    const smtpUser = process.env.SMTP_USER;
+    const smtpUser = process.env.SMTP_USER || "mon.trajet.mail@gmail.com";
+
     // Nettoyer les espaces si l'utilisateur copie-colle "abcd efgh ijkl mnop" depuis Google
     const rawPass = process.env.SMTP_PASS || "";
     const smtpPass = rawPass.replace(/\s+/g, "");
-    const smtpFrom = process.env.SMTP_FROM || `"Mon Trajet - Église" <${smtpUser || "mon.trajet.mail@gmail.com"}>`;
+    const smtpFrom = process.env.SMTP_FROM || `"Mon Trajet - Église" <${smtpUser}>`;
 
     const isConfigured =
       smtpHost &&
       smtpUser &&
       smtpPass &&
+      smtpPass.length >= 8 &&
       !smtpPass.includes("A_REMPLACER");
 
-    // Mode secours si le serveur SMTP n'est pas encore renseigné dans les .env
+    // Mode secours si le mot de passe SMTP n'est pas encore renseigné dans les .env
     if (!isConfigured) {
-      console.warn("⚠️ [SMTP Non configuré] Les variables SMTP_HOST, SMTP_USER ou SMTP_PASS sont absentes.");
+      console.warn("⚠️ [SMTP Non configuré] La variable SMTP_PASS est absente ou contient le modèle par défaut.");
       console.info(`🔑 [Code Réinitialisation pour ${cleanEmail}] Code: ${code} | Lien: ${resetUrl}`);
 
       return NextResponse.json({
         success: true,
         warning: "smtp_not_configured",
-        // En développement local, on transmet le code pour faciliter les tests immédiats
+        // En développement, transmettre le code pour tester sans bloquer
         devCode: process.env.NODE_ENV !== "production" ? code : undefined,
         message: "Si un compte est associé à cette adresse email, vous recevrez un message de réinitialisation d'ici quelques instants.",
       });
     }
 
-    // 3. Création du transporteur SMTP Nodemailer
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    });
+    // 3. Création du transporteur SMTP (avec support natif optimisé pour Gmail)
+    const transporter = nodemailer.createTransport(
+      smtpHost.includes("gmail")
+        ? {
+            service: "gmail",
+            auth: {
+              user: smtpUser,
+              pass: smtpPass,
+            },
+          }
+        : {
+            host: smtpHost,
+            port: smtpPort,
+            secure: smtpSecure,
+            auth: {
+              user: smtpUser,
+              pass: smtpPass,
+            },
+          }
+    );
 
     // 4. Envoi de l'email HTML soigné et moderne
     const mailHtml = `
@@ -193,8 +202,25 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("[ForgotPassword Error]", error);
+
+    const errorMsg = error?.message?.toLowerCase() || "";
+    if (
+      errorMsg.includes("invalid login") ||
+      errorMsg.includes("badauth") ||
+      errorMsg.includes("username and password not accepted") ||
+      errorMsg.includes("535")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Identifiants Gmail non acceptés. Assurez-vous d'utiliser un Mot de passe d'application Google (16 lettres) et non votre mot de passe habituel.",
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Impossible d'envoyer l'email de réinitialisation. Veuillez réessayer plus tard." },
+      { error: "Impossible d'envoyer l'email de réinitialisation pour le moment. Veuillez réessayer dans quelques instants." },
       { status: 500 }
     );
   }
