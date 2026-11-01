@@ -265,6 +265,33 @@ function RideDetailsContent() {
               <ChevronRight className="h-4 w-4 text-slate-300 flex-shrink-0" />
             </div>
 
+            {/* Arrêts intermédiaires */}
+            {tripDetails.stops && tripDetails.stops.length > 0 && (
+              <>
+                {tripDetails.stops.map((stop: any, idx: number) => (
+                  <React.Fragment key={idx}>
+                    <div className="ml-3.5 w-0.5 h-4 bg-amber-200 rounded-full" />
+                    <div className="flex items-center justify-between group">
+                      <div className="flex items-start gap-3 min-w-0 pr-2">
+                        <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-amber-50 text-amber-600 font-extrabold text-xs flex-shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-[#1a3860] block truncate">
+                            {stop.address}
+                          </span>
+                          <span className="text-[11px] text-amber-700 block mt-0.5 font-medium">
+                            Arrêt {idx + 1} • Passage est. {formatHour(stop.estimatedTime)}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-slate-300 flex-shrink-0" />
+                    </div>
+                  </React.Fragment>
+                ))}
+              </>
+            )}
+
             {/* Ligne de connexion verticale */}
             <div className="ml-3.5 w-0.5 h-4 bg-slate-200 rounded-full" />
 

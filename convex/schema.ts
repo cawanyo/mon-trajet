@@ -81,6 +81,19 @@ export default defineSchema({
     totalSeats: v.number(),
     availableSeats: v.number(),
     pickupRadiusMeters: v.optional(v.number()), // Périmètre toléré pour récupérer un passager (200m - 5000m)
+    stops: v.optional(
+      v.array(
+        v.object({
+          lat: v.number(),
+          lng: v.number(),
+          address: v.string(),
+          estimatedTime: v.number(), // Timestamp Unix (ms) estimé d'arrivée / départ au stop
+          stopOrder: v.number(), // Ordre de l'étape (1, 2, 3...)
+          durationFromDepartureMinutes: v.optional(v.number()),
+          distanceFromDepartureMeters: v.optional(v.number()),
+        })
+      )
+    ),
     status: v.union(
       v.literal("planned"),     // Planifié et ouvert
       v.literal("active"),      // En cours de route

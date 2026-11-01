@@ -208,3 +208,46 @@ export function getOptimalWaypointsOrder<T extends { pickupLocation: { lat: numb
 
   return ordered;
 }
+
+export interface RouteLegEstimation {
+  legDistanceMeters: number;
+  legDurationMinutes: number;
+  cumulativeDistanceMeters: number;
+  cumulativeDurationMinutes: number;
+}
+
+/**
+ * Estime le temps de trajet en voiture entre plusieurs étapes consécutives.
+ * Vitesse moyenne urbaine/périurbaine de ~35 km/h avec marge de 2 min par arrêt.
+ */
+export function estimateRouteDurations(
+  points: Array<{ lat: number; lng: number }>
+): RouteLegEstimation[] {
+  if (points.length < 2) return [];
+
+  const results: RouteLegEstimation[] = [];
+  let cumDist = 0;
+  let cumDur = 0;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const distMeters = getDistanceMeters(p1.lat, p1.lng, p2.lat, p2.lng);
+    const distKm = distMeters / 1000;
+
+    // Estimation temps de trajet : base 35 km/h + 2 min pour ralentissement/arrêt
+    const legMinutes = Math.max(2, Math.round((distKm / 35) * 60) + 1);
+
+    cumDist += distMeters;
+    cumDur += legMinutes;
+
+    results.push({
+      legDistanceMeters: distMeters,
+      legDurationMinutes: legMinutes,
+      cumulativeDistanceMeters: cumDist,
+      cumulativeDurationMinutes: cumDur,
+    });
+  }
+
+  return results;
+}

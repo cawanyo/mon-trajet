@@ -146,6 +146,34 @@ function TripSuccessContent() {
               </div>
             </div>
 
+            {/* Arrêts intermédiaires si présents */}
+            {trip.stops && trip.stops.length > 0 && (
+              <>
+                {trip.stops.map((stop: any, index: number) => (
+                  <React.Fragment key={index}>
+                    {/* Ligne verticale de liaison */}
+                    <div className="ml-2.5 my-0.5 w-0.5 h-4 border-l-2 border-dashed border-amber-300" />
+
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-black flex-shrink-0 shadow-xs">
+                          {index + 1}
+                        </div>
+                        <span className="text-xs font-bold text-[#1a3860] truncate">
+                          {stop.address}
+                        </span>
+                      </div>
+                      <div className="pl-7">
+                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full inline-block">
+                          Passage est. : {formatTime(stop.estimatedTime)} • Arrêt {index + 1}
+                        </span>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </>
+            )}
+
             {/* Ligne verticale de liaison */}
             <div className="ml-2.5 my-0.5 w-0.5 h-5 border-l-2 border-slate-300" />
 

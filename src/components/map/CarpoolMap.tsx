@@ -52,6 +52,7 @@ export interface TripItem {
   totalSeats: number;
   availableSeats: number;
   notes?: string;
+  stops?: Array<LocationPoint & { estimatedTime?: number; stopOrder?: number }>;
 }
 
 export interface NeedItem {
@@ -107,6 +108,7 @@ export interface UpcomingTripItem {
   currentEscaleIndex?: number;
   startedAt?: number;
   escales?: UpcomingEscaleItem[];
+  stops?: Array<LocationPoint & { estimatedTime?: number; stopOrder?: number }>;
 }
 
 interface CarpoolMapProps {
@@ -503,8 +505,12 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
         if (!nextTrip.departureLocation || !nextTrip.destinationLocation) return;
         const start = nextTrip.currentLocation || nextTrip.departureLocation;
         const remainingEscales = optimalEscales.slice(currentEscaleIndex);
+        const intermediateStops = (nextTrip.stops || []).map(
+          (s) => [s.lng, s.lat] as [number, number]
+        );
         coords = [
           [start.lng, start.lat],
+          ...intermediateStops,
           ...remainingEscales.map((e) => [e.pickupLocation.lng, e.pickupLocation.lat] as [number, number]),
           [nextTrip.destinationLocation.lng, nextTrip.destinationLocation.lat],
         ];
@@ -812,6 +818,26 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                 </Marker>
               );
             })}
+
+            {/* Arrêts intermédiaires déclarés */}
+            {(nextTrip.stops || []).map((stop, idx) => (
+              <Marker
+                key={`stop-${idx}`}
+                latitude={stop.lat}
+                longitude={stop.lng}
+                anchor="bottom"
+              >
+                <div className="relative flex flex-col items-center">
+                  <div className="px-2 py-0.5 mb-1 rounded-md bg-amber-600 text-white text-[9px] font-bold shadow-xs whitespace-nowrap max-w-[150px] truncate">
+                    Arrêt {idx + 1}
+                  </div>
+                  <div className="relative flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-white font-black text-xs ring-2 ring-white shadow-md">
+                    {idx + 1}
+                  </div>
+                  <div className="h-2 w-2 rotate-45 bg-amber-500 -mt-1 ring-1 ring-white" />
+                </div>
+              </Marker>
+            ))}
 
             {/* Destination finale */}
             {nextTrip.destinationLocation && (

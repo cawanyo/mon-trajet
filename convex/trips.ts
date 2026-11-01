@@ -50,13 +50,26 @@ export const createTrip = mutation({
     departureTime: v.number(),
     totalSeats: v.number(),
     pickupRadiusMeters: v.optional(v.number()),
+    stops: v.optional(
+      v.array(
+        v.object({
+          lat: v.number(),
+          lng: v.number(),
+          address: v.string(),
+          estimatedTime: v.number(),
+          stopOrder: v.number(),
+          durationFromDepartureMinutes: v.optional(v.number()),
+          distanceFromDepartureMeters: v.optional(v.number()),
+        })
+      )
+    ),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.token);
     if (!user) throw new Error("Authentification requise.");
-    if (user.status === "rejected") {
-      throw new Error("Votre compte n'est pas autorisé à proposer un trajet.");
+    if (user.status !== "approved") {
+      throw new Error("Seuls les membres validés par les responsables de l'église peuvent proposer des trajets.");
     }
 
     if (args.totalSeats <= 0) {
@@ -71,6 +84,7 @@ export const createTrip = mutation({
       totalSeats: args.totalSeats,
       availableSeats: args.totalSeats,
       pickupRadiusMeters: args.pickupRadiusMeters ?? 500,
+      stops: args.stops,
       status: "planned",
       notes: args.notes,
       createdAt: Date.now(),
@@ -723,6 +737,7 @@ export const getNextUpcomingTrip = query({
             destinationLocation: trip.destinationLocation,
             departureAddress: trip.departureLocation.address,
             destinationAddress: trip.destinationLocation.address,
+            stops: trip.stops,
             myPickupLocation: req.pickupLocation,
             currentLocation: trip.currentLocation,
             nextDestinationName: trip.nextDestinationName,
@@ -784,6 +799,7 @@ export const getNextUpcomingTrip = query({
           destinationLocation: t.destinationLocation,
           departureAddress: t.departureLocation.address,
           destinationAddress: t.destinationLocation.address,
+          stops: t.stops,
           currentLocation: t.currentLocation,
           nextDestinationName: t.nextDestinationName,
           currentEscaleIndex: t.currentEscaleIndex,

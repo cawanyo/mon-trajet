@@ -204,10 +204,20 @@ function TripDetailsContent() {
     const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
     if (!map) return;
 
-    const minLng = Math.min(trip.departureLocation.lng, trip.destinationLocation.lng);
-    const maxLng = Math.max(trip.departureLocation.lng, trip.destinationLocation.lng);
-    const minLat = Math.min(trip.departureLocation.lat, trip.destinationLocation.lat);
-    const maxLat = Math.max(trip.departureLocation.lat, trip.destinationLocation.lat);
+    const allLngs = [
+      trip.departureLocation.lng,
+      trip.destinationLocation.lng,
+      ...(trip.stops || []).map((s: any) => s.lng),
+    ];
+    const allLats = [
+      trip.departureLocation.lat,
+      trip.destinationLocation.lat,
+      ...(trip.stops || []).map((s: any) => s.lat),
+    ];
+    const minLng = Math.min(...allLngs);
+    const maxLng = Math.max(...allLngs);
+    const minLat = Math.min(...allLats);
+    const maxLat = Math.max(...allLats);
 
     if (Math.abs(minLng - maxLng) < 0.0001 && Math.abs(minLat - maxLat) < 0.0001) {
       map.easeTo({
@@ -303,15 +313,18 @@ function TripDetailsContent() {
         }
       }
 
-      // 2. Ligne reliant départ et destination
+      // 2. Ligne reliant départ, stops et destination
+      const coords: [number, number][] = [
+        [trip.departureLocation.lng, trip.departureLocation.lat],
+        ...(trip.stops || []).map((s: any) => [s.lng, s.lat] as [number, number]),
+        [trip.destinationLocation.lng, trip.destinationLocation.lat],
+      ];
+
       const routeLineGeoJSON = {
         type: "Feature" as const,
         geometry: {
           type: "LineString" as const,
-          coordinates: [
-            [trip.departureLocation.lng, trip.departureLocation.lat],
-            [trip.destinationLocation.lng, trip.destinationLocation.lat],
-          ],
+          coordinates: coords,
         },
         properties: {},
       };
@@ -708,6 +721,30 @@ function TripDetailsContent() {
                 </div>
               </div>
 
+              {/* Arrêts intermédiaires */}
+              {trip.stops && trip.stops.length > 0 && (
+                <>
+                  {trip.stops.map((stop: any, idx: number) => (
+                    <React.Fragment key={idx}>
+                      <div className="ml-3.5 w-0.5 h-4 border-l-2 border-dashed border-amber-300" />
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-amber-50 text-amber-600 font-extrabold text-xs flex-shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-[#1a3860] block truncate">
+                            {stop.address}
+                          </span>
+                          <span className="text-[11px] text-amber-700 block mt-0.5 font-medium">
+                            Arrêt {idx + 1} • Passage est. {formatTime(stop.estimatedTime)}
+                          </span>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </>
+              )}
+
               {/* Ligne pointillée */}
               <div className="ml-3.5 w-0.5 h-5 border-l-2 border-dashed border-slate-300" />
 
@@ -747,6 +784,17 @@ function TripDetailsContent() {
                     <Car className="h-3.5 w-3.5" />
                   </div>
                 </Marker>
+                {(trip.stops || []).map((stop: any, idx: number) => (
+                  <Marker
+                    key={idx}
+                    latitude={stop.lat}
+                    longitude={stop.lng}
+                  >
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-white font-black text-[10px] shadow-md ring-2 ring-white">
+                      {idx + 1}
+                    </div>
+                  </Marker>
+                ))}
                 <Marker
                   latitude={trip.destinationLocation.lat}
                   longitude={trip.destinationLocation.lng}
@@ -888,6 +936,23 @@ function TripDetailsContent() {
             </div>
           </Marker>
 
+          {/* Marqueurs Arrêts intermédiaires */}
+          {(trip.stops || []).map((stop: any, idx: number) => (
+            <Marker
+              key={idx}
+              latitude={stop.lat}
+              longitude={stop.lng}
+              anchor="bottom"
+            >
+              <div className="relative flex flex-col items-center group">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500 text-white font-black text-xs shadow-xl ring-2 ring-white">
+                  {idx + 1}
+                </div>
+                <div className="h-2 w-2 rotate-45 bg-amber-500 -mt-1 ring-1 ring-white" />
+              </div>
+            </Marker>
+          ))}
+
           {/* Marqueur Destination (Pin bleu #2669e2 avec icône destination) */}
           <Marker
             latitude={trip.destinationLocation.lat}
@@ -1006,6 +1071,30 @@ function TripDetailsContent() {
                       {formatTime(trip.departureTime)}
                     </span>
                   </div>
+
+                  {/* Arrêts intermédiaires */}
+                  {trip.stops && trip.stops.length > 0 && (
+                    <>
+                      {trip.stops.map((stop: any, idx: number) => (
+                        <React.Fragment key={idx}>
+                          <div className="ml-3.5 my-0.5 w-0.5 h-4 border-l-2 border-dashed border-amber-300" />
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-50 text-amber-600 font-extrabold text-xs flex-shrink-0">
+                                {idx + 1}
+                              </div>
+                              <span className="text-xs sm:text-sm font-bold text-[#1a3860] truncate">
+                                {stop.address}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                              {formatTime(stop.estimatedTime)}
+                            </span>
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </>
+                  )}
 
                   {/* Ligne pointillée verticale */}
                   <div className="ml-3.5 my-0.5 w-0.5 h-4 border-l-2 border-dashed border-slate-300" />

@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
-import { reverseGeocode, geocodeAddress } from "@/lib/geo";
+import { reverseGeocode, geocodeAddress, estimateRouteDurations } from "@/lib/geo";
 import { useToast } from "@/components/ui/ToastProvider";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -22,12 +22,32 @@ import {
   LocateFixed,
   Church,
   RotateCcw,
+  Plus,
+  Trash2,
+  ShieldAlert,
+  Sparkles,
 } from "lucide-react";
+
+interface TripStopItem {
+  id: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+// Calcul de l'heure résultante : "09:00" + 15 min = "09:15"
+function getEstimatedStopTimeStr(baseTimeStr: string, minutesToAdd: number): string {
+  const [h, m] = baseTimeStr.split(":").map(Number);
+  const totalMin = (h || 0) * 60 + (m || 0) + minutesToAdd;
+  const newH = Math.floor(totalMin / 60) % 24;
+  const newM = totalMin % 60;
+  return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+}
 
 function CreateTripContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, token } = useAuth();
+  const { user, token, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
 
   // Étape courante : 1 = Carte & Itinéraire, 2 = Horaires & Places
@@ -36,7 +56,7 @@ function CreateTripContent() {
   // Référence à la carte MapLibre
   const mapRef = useRef<any>(null);
 
-  // Récupération de l'adresse de l'église configurée par le manager
+  // Récupération des paramètres de l'église
   const churchSettings = useQuery(api.settings.getChurchSettings);
   const createTrip = useMutation(api.trips.createTrip);
 
@@ -47,6 +67,9 @@ function CreateTripContent() {
     lng: 2.3522,
   });
 
+  // Arrêts intermédiaires / étapes
+  const [stops, setStops] = useState<TripStopItem[]>([]);
+
   // Lieu de destination (initialisé à l'église une seule fois)
   const [destinationAddress, setDestinationAddress] = useState("");
   const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number }>({
@@ -54,10 +77,10 @@ function CreateTripContent() {
     lng: 2.3522,
   });
 
-  // Flag pour ne charger l'église par défaut qu'une seule fois (permet d'effacer le champ librement)
+  // Flag pour ne charger l'église par défaut qu'une seule fois
   const hasInitializedChurchRef = useRef(false);
 
-  // Date et Heure par défaut (heure et date locales actuelles)
+  // Date et Heure par défaut
   const getNowStrings = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -79,17 +102,17 @@ function CreateTripContent() {
   // Nombre de places
   const [seats, setSeats] = useState(3);
 
-  // Périmètre toléré (200 m à 5 km, défaut: 500 m ou préférence utilisateur)
+  // Périmètre toléré (200 m à 5 km, défaut: 500 m)
   const [radiusMeters, setRadiusMeters] = useState(500);
 
-  // Initialisation du détour par défaut depuis les préférences utilisateur des paramètres
+  // Initialisation du détour par défaut depuis les préférences
   useEffect(() => {
     if (user && (user as any).preferences?.preferredDetourRadius) {
       setRadiusMeters((user as any).preferences.preferredDetourRadius);
     }
   }, [user]);
 
-  // Pré-remplissage avec l'adresse de la maison si configurée dans le profil
+  // Pré-remplissage avec l'adresse du domicile si configurée
   useEffect(() => {
     if (user && (user as any).homeAddress?.address && !departureAddress && !searchParams.get("lat")) {
       const home = (user as any).homeAddress;
@@ -111,7 +134,7 @@ function CreateTripContent() {
     zoom: 13,
   });
 
-  // Initialisation avec l'église UNE SEULE FOIS dès que les settings Convex sont chargés (uniquement si destination vide)
+  // Initialisation avec l'église
   useEffect(() => {
     if (churchSettings && !hasInitializedChurchRef.current) {
       hasInitializedChurchRef.current = true;
@@ -130,7 +153,7 @@ function CreateTripContent() {
     }
   }, [churchSettings, destinationAddress]);
 
-  // Si des coordonnées GPS initiales ont été passées dans l'URL depuis la carte
+  // Coordonnées GPS passées dans l'URL
   useEffect(() => {
     const latParam = searchParams.get("lat");
     const lngParam = searchParams.get("lng");
@@ -142,44 +165,59 @@ function CreateTripContent() {
     }
   }, [searchParams]);
 
-  // Formatage du rayon pour l'affichage (ex: 500 m ou 1,5 km)
+  // Formatage du rayon pour l'affichage
   const formatRadius = (meters: number) => {
     if (meters < 1000) return `${meters} m`;
     const km = meters / 1000;
     return `${km % 1 === 0 ? km : km.toFixed(1).replace(".", ",")} km`;
   };
 
-  // Ajuste la vue de la carte pour afficher à la fois le départ et la destination
-  const fitRouteBounds = (
-    c1 = departureCoords,
-    c2 = destinationCoords
-  ) => {
-    if (!mapRef.current || !c1) return;
+  // Filtrer les arrêts valides ayant des coordonnées réelles
+  const validStops = useMemo(() => {
+    return stops.filter((s) => s.address.trim() && s.lat && s.lng);
+  }, [stops]);
+
+  // Points ordonnés complets du trajet : Départ -> Arrêt 1 -> Arrêt 2 -> ... -> Destination
+  const routePoints = useMemo(() => {
+    if (!departureCoords?.lat || !departureCoords?.lng) return [];
+    const pts = [{ lat: departureCoords.lat, lng: departureCoords.lng }];
+    for (const s of validStops) {
+      pts.push({ lat: s.lat, lng: s.lng });
+    }
+    if (destinationCoords?.lat && destinationCoords?.lng && destinationAddress.trim()) {
+      pts.push({ lat: destinationCoords.lat, lng: destinationCoords.lng });
+    }
+    return pts;
+  }, [departureCoords, validStops, destinationCoords, destinationAddress]);
+
+  // Estimations des durées et distances cumulées pour chaque étape
+  const routeEstimations = useMemo(() => {
+    return estimateRouteDurations(routePoints);
+  }, [routePoints]);
+
+  // Ajuste la vue de la carte pour afficher l'ensemble des points (départ, arrêts, arrivée)
+  const fitRouteBounds = () => {
+    if (!mapRef.current) return;
     const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
     if (!map) return;
 
-    if (!c2 || !destinationAddress.trim()) {
-      map.easeTo({
-        center: [c1.lng, c1.lat],
-        zoom: 14,
-        duration: 800,
-      });
+    const allPts: Array<{ lat: number; lng: number }> = [];
+    if (departureCoords?.lat) allPts.push(departureCoords);
+    for (const s of validStops) {
+      if (s.lat && s.lng) allPts.push({ lat: s.lat, lng: s.lng });
+    }
+    if (destinationAddress.trim() && destinationCoords?.lat) allPts.push(destinationCoords);
+
+    if (allPts.length === 0) return;
+    if (allPts.length === 1) {
+      map.easeTo({ center: [allPts[0].lng, allPts[0].lat], zoom: 14, duration: 800 });
       return;
     }
 
-    const minLng = Math.min(c1.lng, c2.lng);
-    const maxLng = Math.max(c1.lng, c2.lng);
-    const minLat = Math.min(c1.lat, c2.lat);
-    const maxLat = Math.max(c1.lat, c2.lat);
-
-    if (Math.abs(minLng - maxLng) < 0.0001 && Math.abs(minLat - maxLat) < 0.0001) {
-      map.easeTo({
-        center: [c1.lng, c1.lat],
-        zoom: 14,
-        duration: 800,
-      });
-      return;
-    }
+    const minLng = Math.min(...allPts.map((p) => p.lng));
+    const maxLng = Math.max(...allPts.map((p) => p.lng));
+    const minLat = Math.min(...allPts.map((p) => p.lat));
+    const maxLat = Math.max(...allPts.map((p) => p.lat));
 
     try {
       map.fitBounds(
@@ -188,7 +226,7 @@ function CreateTripContent() {
           [maxLng, maxLat],
         ],
         {
-          padding: { top: 90, bottom: 330, left: 50, right: 50 },
+          padding: { top: 90, bottom: 380, left: 50, right: 50 },
           duration: 800,
           maxZoom: 16,
         }
@@ -198,9 +236,37 @@ function CreateTripContent() {
     }
   };
 
+  // Gestion des arrêts intermédiaires
+  const handleAddStop = () => {
+    if (stops.length >= 5) {
+      toast.info("Maximum 5 arrêts intermédiaires par trajet.");
+      return;
+    }
+    setStops((prev) => [
+      ...prev,
+      { id: Math.random().toString(36).substring(2, 9), address: "", lat: 0, lng: 0 },
+    ]);
+  };
 
+  const handleRemoveStop = (id: string) => {
+    setStops((prev) => prev.filter((s) => s.id !== id));
+  };
 
-  // Détection robuste de la position actuelle du conducteur
+  const handleUpdateStop = (id: string, address: string, coords?: { lat: number; lng: number }) => {
+    setStops((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        return {
+          ...s,
+          address,
+          lat: coords?.lat ?? s.lat,
+          lng: coords?.lng ?? s.lng,
+        };
+      })
+    );
+  };
+
+  // Détection position actuelle du conducteur
   const handleDetectCurrentLocation = () => {
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
       toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
@@ -225,30 +291,21 @@ function CreateTripContent() {
         const realAddr = await reverseGeocode(lat, lng);
         setDepartureAddress(realAddr);
       } catch {}
-      fitRouteBounds(newCoords, destinationCoords);
+      fitRouteBounds();
     };
 
-    // Stratégie double : essai haute précision (5s), puis bascule automatique standard/cache (15s)
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        applyLocation(pos.coords.latitude, pos.coords.longitude);
-      },
+      (pos) => applyLocation(pos.coords.latitude, pos.coords.longitude),
       (err1) => {
         if (err1.code === 1) {
           setIsLocating(false);
-          toast.error(
-            "Position refusée. Sur iPhone : appuyez sur 'aA' dans Safari > Réglages du site web > Emplacement > Autoriser."
-          );
+          toast.error("Emplacement refusé par votre navigateur.");
           return;
         }
-        console.warn("Échec haute précision GPS, tentative standard :", err1.message);
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            applyLocation(pos.coords.latitude, pos.coords.longitude);
-          },
-          (err2) => {
+          (pos) => applyLocation(pos.coords.latitude, pos.coords.longitude),
+          () => {
             setIsLocating(false);
-            console.error("Échec géolocalisation complète :", err2.message);
             toast.error("Impossible d'accéder au GPS. Veuillez saisir votre adresse.");
           },
           { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
@@ -258,20 +315,19 @@ function CreateTripContent() {
     );
   };
 
-  // Réinitialiser la destination avec l'adresse officielle de l'église
+  // Réinitialiser la destination vers l'église
   const handleResetToChurch = () => {
     if (churchSettings) {
-      const churchCoords = {
+      setDestinationAddress(churchSettings.address);
+      setDestinationCoords({
         lat: churchSettings.lat,
         lng: churchSettings.lng,
-      };
-      setDestinationAddress(churchSettings.address);
-      setDestinationCoords(churchCoords);
-      fitRouteBounds(departureCoords, churchCoords);
+      });
+      fitRouteBounds();
     }
   };
 
-  // Génération géométrique du polygone GeoJSON représentant le cercle de détour toléré
+  // Cercle de détour toléré
   const circleGeoJSON = useMemo(() => {
     if (!departureCoords?.lat || !departureCoords?.lng) return null;
     const points = 64;
@@ -298,23 +354,27 @@ function CreateTripContent() {
     };
   }, [departureCoords.lat, departureCoords.lng, radiusMeters]);
 
-  // Ligne GeoJSON reliant le départ et la destination
+  // Ligne GeoJSON reliant départ -> tous les arrêts -> destination
   const routeLineGeoJSON = useMemo(() => {
     if (!departureCoords?.lat || !destinationCoords?.lat || !destinationAddress.trim()) return null;
+
+    const coords: [number, number][] = [
+      [departureCoords.lng, departureCoords.lat],
+      ...validStops.map((s) => [s.lng, s.lat] as [number, number]),
+      [destinationCoords.lng, destinationCoords.lat],
+    ];
+
     return {
       type: "Feature" as const,
       geometry: {
         type: "LineString" as const,
-        coordinates: [
-          [departureCoords.lng, departureCoords.lat],
-          [destinationCoords.lng, destinationCoords.lat],
-        ],
+        coordinates: coords,
       },
       properties: {},
     };
-  }, [departureCoords.lat, departureCoords.lng, destinationCoords.lat, destinationCoords.lng, destinationAddress]);
+  }, [departureCoords, destinationCoords, destinationAddress, validStops]);
 
-  // Mise à jour robuste et directe des calques MapLibre (cercle de détour & ligne d'itinéraire)
+  // Mise à jour des calques MapLibre
   const updateMapLayers = () => {
     if (!mapRef.current) return;
     const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
@@ -359,7 +419,7 @@ function CreateTripContent() {
         }
       }
 
-      // 2. Ligne reliant départ et destination
+      // 2. Ligne reliant départ, arrêts et destination
       if (routeLineGeoJSON && destinationAddress.trim()) {
         const lineSource = map.getSource("route-line-source");
         if (lineSource) {
@@ -418,7 +478,6 @@ function CreateTripContent() {
     }
   };
 
-  // Synchronisation dès que les données du cercle ou de la ligne changent
   useEffect(() => {
     updateMapLayers();
   }, [circleGeoJSON, routeLineGeoJSON, destinationAddress]);
@@ -434,7 +493,7 @@ function CreateTripContent() {
       return;
     }
 
-    // Géocodage automatique pour s'assurer que les coordonnées GPS correspondent exactement aux adresses saisies
+    // Géocodage de sécurité
     let depCoords = departureCoords;
     let destCoords = destinationCoords;
 
@@ -450,9 +509,19 @@ function CreateTripContent() {
       setDestinationCoords(geocodedDest);
     }
 
-    fitRouteBounds(depCoords, destCoords);
+    // Géocodage des arrêts qui n'ont pas encore de coordonnées GPS
+    for (const stop of stops) {
+      if (stop.address.trim() && (!stop.lat || !stop.lng)) {
+        const gStop = await geocodeAddress(stop.address);
+        if (gStop) {
+          handleUpdateStop(stop.id, stop.address, gStop);
+        }
+      }
+    }
 
-    // Actualiser l'heure avec l'heure exacte du moment lors de l'accès à l'étape 2
+    fitRouteBounds();
+
+    // Actualiser l'heure
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, "0");
     const minutes = String(now.getMinutes()).padStart(2, "0");
@@ -461,7 +530,7 @@ function CreateTripContent() {
     setStep(2);
   };
 
-  // Soumission finale du trajet (depuis l'étape 2)
+  // Soumission finale du trajet
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -478,33 +547,44 @@ function CreateTripContent() {
 
     setIsSubmitting(true);
     try {
-      // Vérification finale des coordonnées pour garantir la concordance GPS
-      let finalDep = departureCoords;
-      let finalDest = destinationCoords;
-      const gDep = await geocodeAddress(departureAddress);
-      if (gDep) finalDep = gDep;
-      const gDest = await geocodeAddress(destinationAddress);
-      if (gDest) finalDest = gDest;
-
       const [year, month, day] = date.split("-").map(Number);
       const [hours, minutes] = time.split(":").map(Number);
       const departureDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+      const baseDepartureTime = departureDate.getTime();
+
+      // Formater les arrêts intermédiaires avec leur heure de passage estimée
+      const formattedStops = validStops.map((stop, index) => {
+        const est = routeEstimations[index];
+        const durationMin = est?.cumulativeDurationMinutes ?? (index + 1) * 10;
+        const estimatedTime = baseDepartureTime + durationMin * 60 * 1000;
+
+        return {
+          lat: stop.lat,
+          lng: stop.lng,
+          address: stop.address,
+          stopOrder: index + 1,
+          durationFromDepartureMinutes: durationMin,
+          distanceFromDepartureMeters: est?.cumulativeDistanceMeters ?? 0,
+          estimatedTime,
+        };
+      });
 
       const tripId = await createTrip({
         token,
         departureLocation: {
-          lat: finalDep.lat,
-          lng: finalDep.lng,
+          lat: departureCoords.lat,
+          lng: departureCoords.lng,
           address: departureAddress,
         },
         destinationLocation: {
-          lat: finalDest.lat,
-          lng: finalDest.lng,
+          lat: destinationCoords.lat,
+          lng: destinationCoords.lng,
           address: destinationAddress,
         },
-        departureTime: departureDate.getTime(),
+        departureTime: baseDepartureTime,
         totalSeats: seats,
         pickupRadiusMeters: radiusMeters,
+        stops: formattedStops.length > 0 ? formattedStops : undefined,
         notes: notes.trim() || undefined,
       });
 
@@ -516,14 +596,49 @@ function CreateTripContent() {
     }
   };
 
+  // 1. GARDE DE SÉCURITÉ : SEULS LES MEMBRES VALIDÉS PEUVENT PROPOSER UN TRAJET
+  if (!isAuthLoading && user && user.status !== "approved") {
+    return (
+      <div className="min-h-dvh flex items-center justify-center p-6 bg-[#f4f7fb] select-none">
+        <div className="max-w-sm w-full rounded-3xl glass-panel bg-white/95 backdrop-blur-2xl p-6 border border-white shadow-xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 mx-auto border border-amber-200/80 shadow-xs">
+            <Clock className="h-7 w-7" />
+          </div>
+
+          <div>
+            <h1 className="text-base font-bold text-[#1a3860]">
+              Compte en attente de validation
+            </h1>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Pour assurer la sécurité et la sérénité de la communauté, seuls les membres vérifiés et validés par les responsables de la paroisse peuvent proposer des trajets de covoiturage.
+            </p>
+            <div className="mt-3 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/50 text-[11px] text-amber-800 font-semibold leading-snug">
+              Votre compte est actuellement en cours d'examen. Vous serez averti dès que votre accès sera activé.
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="w-full py-3 rounded-2xl bg-[#175276] text-white text-xs font-bold shadow-xs hover:bg-[#134260] active:scale-95 transition-all cursor-pointer"
+            >
+              Retour à l'accueil
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-dvh bg-[#f4f7fb] text-slate-800 select-none overflow-hidden">
       {/* ============================================================ */}
-      {/* ÉTAPE 1 : CARTE INTERACTIVE, ITINÉRAIRE & CERCLE DE DÉTOUR    */}
+      {/* ÉTAPE 1 : CARTE INTERACTIVE, DÉPART, ARRÊTS & DESTINATION     */}
       {/* ============================================================ */}
       {step === 1 && (
         <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
-          {/* CARTE PLEIN ÉCRAN IMMERSIVE */}
+          {/* CARTE PLEIN ÉCRAN */}
           <Map
             ref={mapRef}
             {...viewState}
@@ -543,11 +658,7 @@ function CreateTripContent() {
 
             {/* Marqueur Départ (Voiture Bleue #2d6cb5) */}
             {departureCoords && (
-              <Marker
-                latitude={departureCoords.lat}
-                longitude={departureCoords.lng}
-                anchor="bottom"
-              >
+              <Marker latitude={departureCoords.lat} longitude={departureCoords.lng} anchor="bottom">
                 <div className="relative flex flex-col items-center">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2d6cb5] text-white shadow-xl ring-3 ring-white animate-in zoom-in-75 duration-200">
                     <Car className="h-5 w-5 stroke-[2.2]" />
@@ -560,13 +671,24 @@ function CreateTripContent() {
               </Marker>
             )}
 
-            {/* Marqueur Destination (Église / Arrivée #38917d) - visible uniquement si renseigné */}
+            {/* Marqueurs des Arrêts Intermédiaires (Pastille Orange/Ambre numérotée) */}
+            {validStops.map((stop, index) => (
+              <Marker key={stop.id} latitude={stop.lat} longitude={stop.lng} anchor="bottom">
+                <div className="relative flex flex-col items-center">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white font-black text-xs shadow-xl ring-3 ring-white animate-in zoom-in-75 duration-200">
+                    {index + 1}
+                  </div>
+                  <div className="h-2 w-2 rotate-45 bg-amber-500 -mt-1 ring-1 ring-white" />
+                  <span className="mt-1 px-2 py-0.5 rounded-full bg-white/95 backdrop-blur-md text-[10px] font-bold text-amber-900 shadow-sm border border-amber-200/60 whitespace-nowrap">
+                    Arrêt {index + 1}
+                  </span>
+                </div>
+              </Marker>
+            ))}
+
+            {/* Marqueur Destination (Église / Arrivée #38917d) */}
             {destinationAddress.trim() && destinationCoords && (
-              <Marker
-                latitude={destinationCoords.lat}
-                longitude={destinationCoords.lng}
-                anchor="bottom"
-              >
+              <Marker latitude={destinationCoords.lat} longitude={destinationCoords.lng} anchor="bottom">
                 <div className="relative flex flex-col items-center">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#38917d] text-white shadow-xl ring-3 ring-white animate-in zoom-in-75 duration-200">
                     <Church className="h-5 w-5 stroke-[2.2]" />
@@ -599,13 +721,10 @@ function CreateTripContent() {
                   <h1 className="text-sm font-bold text-[#1a3860] leading-tight">
                     Proposer un trajet
                   </h1>
-                  <span className="text-[11px] font-semibold text-[#2d6cb5]">
-                    Étape 1 sur 2
-                  </span>
+                  <span className="text-[11px] font-semibold text-[#2d6cb5]">Étape 1 sur 2</span>
                 </div>
               </div>
 
-              {/* Bouton recentrer la vue sur l'itinéraire */}
               <button
                 type="button"
                 onClick={() => fitRouteBounds()}
@@ -617,12 +736,12 @@ function CreateTripContent() {
             </div>
           </div>
 
-          {/* TIROIR FLOTTANT INFÉRIEUR GLASSY (DÉPART, DESTINATION, DÉTOUR, CONTINUER) */}
+          {/* TIROIR FLOTTANT INFÉRIEUR (DÉPART, ARRÊTS, DESTINATION, DÉTOUR, CONTINUER) */}
           <div
             className="absolute inset-x-3 max-w-md mx-auto z-20"
             style={{ bottom: "max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))" }}
           >
-            <div className="glass-panel rounded-3xl p-4 shadow-2xl border border-white/80 space-y-3 overflow-visible">
+            <div className="glass-panel rounded-3xl p-4 shadow-2xl border border-white/80 space-y-3 max-h-[75vh] overflow-y-auto">
               {/* 1. Lieu de départ */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
@@ -650,7 +769,7 @@ function CreateTripContent() {
                     setDepartureAddress(addr);
                     if (coords) {
                       setDepartureCoords(coords);
-                      fitRouteBounds(coords, destinationCoords);
+                      fitRouteBounds();
                     }
                   }}
                   placeholder="Adresse de départ..."
@@ -659,8 +778,75 @@ function CreateTripContent() {
                 />
               </div>
 
-              {/* 2. Lieu de destination */}
-              <div className="space-y-1 pt-1.5 border-t border-slate-200/50">
+              {/* 2. Arrêts intermédiaires / étapes */}
+              <div className="space-y-2 pt-1 border-t border-slate-200/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-[#1a3860]">
+                      Arrêts intermédiaires {stops.length > 0 && `(${stops.length})`}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Optionnel</span>
+                  </div>
+
+                  {stops.length < 5 && (
+                    <button
+                      type="button"
+                      onClick={handleAddStop}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>Ajouter un arrêt</span>
+                    </button>
+                  )}
+                </div>
+
+                {stops.map((stop, index) => {
+                  const est = routeEstimations[index];
+                  return (
+                    <div
+                      key={stop.id}
+                      className="relative rounded-2xl bg-amber-50/40 border border-amber-200/60 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-black">
+                            {index + 1}
+                          </span>
+                          <span className="text-[11px] font-bold text-[#1a3860]">
+                            Arrêt {index + 1}
+                          </span>
+                          {est && (
+                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.2 rounded-full">
+                              ~{est.cumulativeDurationMinutes} min de route
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStop(stop.id)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Supprimer cet arrêt"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      <AddressAutocompleteInput
+                        required
+                        value={stop.address}
+                        dropdownPosition="top"
+                        onChange={(addr, coords) => handleUpdateStop(stop.id, addr, coords)}
+                        placeholder={`Adresse de l'arrêt ${index + 1}...`}
+                        icon={MapPin}
+                        iconColor="text-amber-600"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 3. Lieu de destination */}
+              <div className="space-y-1 pt-1 border-t border-slate-200/50">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#1a3860]">Destination</span>
                   {churchSettings && (
@@ -684,7 +870,7 @@ function CreateTripContent() {
                     setDestinationAddress(addr);
                     if (coords) {
                       setDestinationCoords(coords);
-                      fitRouteBounds(departureCoords, coords);
+                      fitRouteBounds();
                     }
                   }}
                   placeholder="Entrez une destination..."
@@ -693,8 +879,8 @@ function CreateTripContent() {
                 />
               </div>
 
-              {/* 3. Périmètre de détour toléré avec slider dynamique */}
-              <div className="space-y-1.5 pt-1.5 border-t border-slate-200/50">
+              {/* 4. Périmètre de détour toléré avec slider dynamique */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-200/50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-[#1a3860]">
                     <Compass className="h-4 w-4 text-[#38917d]" />
@@ -720,13 +906,13 @@ function CreateTripContent() {
                 </div>
               </div>
 
-              {/* 4. Bouton continuer vers l'étape 2 */}
+              {/* 5. Bouton continuer vers l'étape 2 */}
               <button
                 type="button"
                 onClick={handleGoToStep2}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2d6cb5] via-[#2863a8] to-[#205595] text-sm font-bold text-white shadow-lg shadow-[#2d6cb5]/30 hover:opacity-95 active:scale-[0.98] transition-all"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2d6cb5] via-[#2863a8] to-[#205595] text-sm font-bold text-white shadow-lg shadow-[#2d6cb5]/30 hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer"
               >
-                <span>Continuer</span>
+                <span>Continuer vers les horaires</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -735,11 +921,10 @@ function CreateTripContent() {
       )}
 
       {/* ============================================================ */}
-      {/* ÉTAPE 2 : DATE, HEURE, PLACES, NOTE & PUBLICATION              */}
+      {/* ÉTAPE 2 : DATE, HEURE, ARRÊTS ESTIMÉS, PLACES & PUBLICATION   */}
       {/* ============================================================ */}
       {step === 2 && (
         <div className="relative min-h-dvh pb-16 overflow-hidden">
-          {/* Halos d'ambiance pour accentuer l'effet de réfraction du verre dépoli */}
           <div className="pointer-events-none fixed -top-24 -right-24 h-96 w-96 rounded-full bg-blue-200/35 blur-3xl" />
           <div className="pointer-events-none fixed top-1/2 -left-28 h-80 w-80 rounded-full bg-teal-100/40 blur-3xl" />
           <div className="pointer-events-none fixed -bottom-20 right-10 h-72 w-72 rounded-full bg-indigo-100/25 blur-3xl" />
@@ -753,7 +938,7 @@ function CreateTripContent() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="flex h-9 w-9 items-center justify-center rounded-2xl glass-card bg-white/80 hover:bg-white text-slate-700 border border-white/80 active:scale-95 transition-all shadow-xs"
+                className="flex h-9 w-9 items-center justify-center rounded-2xl glass-card bg-white/80 hover:bg-white text-slate-700 border border-white/80 active:scale-95 transition-all shadow-xs cursor-pointer"
                 title="Modifier l'itinéraire"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -770,137 +955,169 @@ function CreateTripContent() {
           </div>
 
           <div className="relative z-10 p-4 max-w-md mx-auto space-y-3.5">
-            {/* RÉCAPITULATIF DE L'ITINÉRAIRE */}
-            <div className="glass-panel rounded-3xl p-3.5 border border-white/80 shadow-xs flex items-center justify-between">
-              <div className="min-w-0 flex-1 space-y-1.5 pr-3">
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="h-2.5 w-2.5 rounded-full bg-[#2d6cb5] flex-shrink-0" />
-                  <span className="font-semibold text-slate-800 truncate">
-                    {departureAddress}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="h-2.5 w-2.5 rounded-full bg-[#38917d] flex-shrink-0" />
-                  <span className="font-semibold text-slate-800 truncate">
-                    {destinationAddress}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            {/* RÉCAPITULATIF DE L'ITINÉRAIRE AVEC HORAIRES ESTIMÉS */}
+            <div className="glass-panel rounded-3xl p-4 border border-white/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-xs font-bold text-[#1a3860]">Itinéraire & Horaires estimés</span>
                 <span className="text-[10px] font-extrabold text-[#38917d] bg-[#e6f4f0] px-2 py-0.5 rounded-full border border-[#cce8e0]">
                   ± {formatRadius(radiusMeters)}
                 </span>
+              </div>
+
+              <div className="space-y-2 relative pl-1">
+                {/* 1. Départ */}
+                <div className="flex items-start gap-2.5 text-xs">
+                  <div className="h-2.5 w-2.5 rounded-full bg-[#2d6cb5] flex-shrink-0 mt-1" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#1a3860] truncate">{departureAddress}</span>
+                      <span className="font-bold text-[#2d6cb5] text-xs ml-2 flex-shrink-0">{time}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">Point de départ</p>
+                  </div>
+                </div>
+
+                {/* 2. Arrêts intermédiaires */}
+                {validStops.map((stop, idx) => {
+                  const est = routeEstimations[idx];
+                  const durationMin = est?.cumulativeDurationMinutes ?? (idx + 1) * 10;
+                  const stopTimeStr = getEstimatedStopTimeStr(time, durationMin);
+
+                  return (
+                    <div key={stop.id} className="flex items-start gap-2.5 text-xs pl-1">
+                      <div className="h-2 w-2 rounded-full bg-amber-500 flex-shrink-0 mt-1" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-800 truncate">
+                            Arrêt {idx + 1} : {stop.address}
+                          </span>
+                          <span className="font-bold text-amber-700 text-xs ml-2 flex-shrink-0">
+                            {stopTimeStr}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-amber-600/90">
+                          Passage estimé à +{durationMin} min • Heure de départ à cet arrêt
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* 3. Arrivée */}
+                <div className="flex items-start gap-2.5 text-xs">
+                  <div className="h-2.5 w-2.5 rounded-full bg-[#38917d] flex-shrink-0 mt-1" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#1a3860] truncate">{destinationAddress}</span>
+                      {routeEstimations.length > 0 && (
+                        <span className="font-bold text-[#38917d] text-xs ml-2 flex-shrink-0">
+                          {getEstimatedStopTimeStr(
+                            time,
+                            routeEstimations[routeEstimations.length - 1]?.cumulativeDurationMinutes ?? 25
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400">Destination finale</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-1 text-right">
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="text-[11px] font-bold text-[#2d6cb5] hover:underline"
+                  className="text-[11px] font-bold text-[#2d6cb5] hover:underline cursor-pointer"
                 >
-                  Modifier
+                  Modifier les arrêts ou adresses
                 </button>
               </div>
             </div>
 
-            {/* FORMULAIRE HORAIRES, PLACES & NOTE */}
+            {/* FORMULAIRE ÉTAPE 2 */}
             <form onSubmit={handleSubmit} className="space-y-3.5">
-              {/* CARTE : DATE & HEURE */}
-              <div className="glass-panel rounded-3xl p-4 border border-white/80 shadow-sm space-y-3.5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Date */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-[#1a3860]">
-                      Date de départ
-                    </label>
-                    <div className="flex items-center gap-2.5 rounded-2xl bg-white/90 border border-slate-200/80 p-2 shadow-xs focus-within:ring-2 focus-within:ring-[#2d6cb5]/30 focus-within:border-[#2d6cb5] transition-all">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#2d6cb5] flex-shrink-0">
-                        <Calendar className="h-4 w-4" />
-                      </div>
-                      <input
-                        type="date"
-                        required
-                        min={todayStr}
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
-                      />
-                    </div>
+              {/* Date & Heure */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="glass-panel rounded-3xl p-3 border border-white/80 shadow-xs space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#1a3860]">
+                    <Calendar className="h-3.5 w-3.5 text-[#2d6cb5]" />
+                    <span>Date</span>
                   </div>
-
-                  {/* Heure */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-[#1a3860]">
-                      Heure de départ
-                    </label>
-                    <div className="flex items-center gap-2.5 rounded-2xl bg-white/90 border border-slate-200/80 p-2 shadow-xs focus-within:ring-2 focus-within:ring-[#2d6cb5]/30 focus-within:border-[#2d6cb5] transition-all">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-[#138872] flex-shrink-0">
-                        <Clock className="h-4 w-4" />
-                      </div>
-                      <input
-                        type="time"
-                        required
-                        value={time}
-                        onChange={(e) => setTime(e.target.value)}
-                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
-                      />
-                    </div>
-                  </div>
+                  <input
+                    type="date"
+                    required
+                    min={todayStr}
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none"
+                  />
                 </div>
 
-                {/* Places disponibles */}
-                <div className="pt-2 border-t border-slate-200/50 space-y-1.5">
-                  <label className="block text-xs font-bold text-[#1a3860]">
-                    Places disponibles
-                  </label>
-                  <div className="grid grid-cols-6 gap-1.5">
-                    {[1, 2, 3, 4, 5, 6].map((num) => (
-                      <button
-                        type="button"
-                        key={num}
-                        onClick={() => setSeats(num)}
-                        className={`py-2 rounded-2xl text-xs font-bold transition-all ${
-                          seats === num
-                            ? "bg-gradient-to-r from-[#2d6cb5] to-[#255ea0] text-white shadow-md shadow-[#2d6cb5]/25 scale-105"
-                            : "glass-card bg-white/70 hover:bg-white text-slate-600 border border-white/80"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
+                <div className="glass-panel rounded-3xl p-3 border border-white/80 shadow-xs space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#1a3860]">
+                    <Clock className="h-3.5 w-3.5 text-[#2d6cb5]" />
+                    <span>Heure de départ</span>
                   </div>
+                  <input
+                    type="time"
+                    required
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    className="w-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none"
+                  />
                 </div>
               </div>
 
-              {/* CARTE : NOTE (OPTIONNELLE) */}
-              <div className="glass-panel rounded-3xl p-4 border border-white/80 shadow-sm space-y-1.5">
-                <label className="block text-xs font-bold text-[#1a3860]">
-                  Note <span className="text-slate-400 font-normal">(optionnel)</span>
-                </label>
+              {/* Nombre de places disponibles */}
+              <div className="glass-panel rounded-3xl p-3.5 border border-white/80 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1a3860]">Places disponibles</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#2d6cb5] border border-blue-100">
+                    {seats} {seats > 1 ? "places" : "place"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  {[1, 2, 3, 4, 5, 6].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setSeats(num)}
+                      className={`flex-1 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                        seats === num
+                          ? "bg-[#2d6cb5] text-white shadow-md shadow-[#2d6cb5]/30 scale-105"
+                          : "glass-card bg-white/70 hover:bg-white text-slate-700 border border-white/80"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes complémentaires */}
+              <div className="glass-panel rounded-3xl p-3.5 border border-white/80 shadow-xs space-y-1.5">
+                <span className="text-xs font-bold text-[#1a3860]">Notes ou précisions</span>
                 <textarea
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ex : Coffre spacieux, départ ponctuel..."
-                  className="w-full rounded-2xl bg-white/80 backdrop-blur-sm border border-slate-200/80 p-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2d6cb5]/30 focus:border-[#2d6cb5] focus:bg-white shadow-xs resize-none transition-all"
+                  placeholder="Ex : Coffre spacieux, départ ponctuel, retour possible après le culte..."
+                  className="w-full rounded-2xl bg-white/80 border border-slate-200/60 p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2d6cb5]/30"
                 />
               </div>
 
-              {/* BOUTON D'ACTION PRINCIPALE */}
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2d6cb5] via-[#2863a8] to-[#205595] text-sm font-bold text-white shadow-lg shadow-[#2d6cb5]/25 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Car className="h-4 w-4" />
-                      <span>Publier le trajet</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              {/* Bouton de publication */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full flex h-13 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2d6cb5] via-[#2863a8] to-[#205595] text-sm font-bold text-white shadow-xl shadow-[#2d6cb5]/30 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <span>Publier mon trajet</span>
+                )}
+              </button>
             </form>
           </div>
         </div>
@@ -914,7 +1131,7 @@ export default function CreateTripPage() {
     <Suspense
       fallback={
         <div className="flex h-screen items-center justify-center bg-[#f4f7fb]">
-          <Loader2 className="h-6 w-6 animate-spin text-[#2d6cb5]" />
+          <Loader2 className="h-7 w-7 animate-spin text-[#2d6cb5]" />
         </div>
       }
     >

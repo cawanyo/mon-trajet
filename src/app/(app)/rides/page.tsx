@@ -151,43 +151,98 @@ function RideResultsContent() {
         if (trip.status === "planned" && now > trip.departureTime + 45 * 60 * 1000) return false;
         if (trip.availableSeats < requestedSeats) return false;
 
-        // Filtrer par date si spécifiée
+        // Points de passage possibles : départ initial + arrêts intermédiaires
+        const pickupOptions = [
+          {
+            type: "departure" as const,
+            address: trip.departureLocation.address,
+            lat: trip.departureLocation.lat,
+            lng: trip.departureLocation.lng,
+            time: trip.departureTime,
+            stopOrder: 0,
+          },
+          ...((trip as any).stops || []).map((s: any) => ({
+            type: "stop" as const,
+            address: s.address,
+            lat: s.lat,
+            lng: s.lng,
+            time: s.estimatedTime,
+            stopOrder: s.stopOrder,
+          })),
+        ];
+
+        let bestPickup = pickupOptions[0];
+        let minDistanceMeters = getDistanceMeters(fromLat, fromLng, bestPickup.lat, bestPickup.lng);
+
+        for (let i = 1; i < pickupOptions.length; i++) {
+          const d = getDistanceMeters(fromLat, fromLng, pickupOptions[i].lat, pickupOptions[i].lng);
+          if (d < minDistanceMeters) {
+            minDistanceMeters = d;
+            bestPickup = pickupOptions[i];
+          }
+        }
+
+        // Filtrer par date selon l'horaire de passage au point correspondant
         if (searchDate) {
-          const tripDateStr = getLocalDateString(trip.departureTime);
-          if (tripDateStr !== searchDate) return false;
+          const pointDateStr = getLocalDateString(bestPickup.time);
+          if (pointDateStr !== searchDate) return false;
         }
 
         // Filtrer par plage horaire spécifiée (startHour à endHour)
-        const tripDate = new Date(trip.departureTime);
-        const tripHour = tripDate.getHours() + tripDate.getMinutes() / 60;
+        const pointDate = new Date(bestPickup.time);
+        const pointHour = pointDate.getHours() + pointDate.getMinutes() / 60;
 
         // Début de plage
-        if (tripHour < startHour) return false;
+        if (pointHour < startHour) return false;
         // Fin de plage (si endHour === 24, on accepte tout jusqu'à minuit 23h59)
-        if (endHour < 24 && tripHour > endHour) return false;
+        if (endHour < 24 && pointHour > endHour) return false;
 
         return true;
       })
       .map((trip) => {
-        // Distance entre le lieu de départ du passager et le départ du conducteur
-        const distanceMeters = getDistanceMeters(
-          fromLat,
-          fromLng,
-          trip.departureLocation.lat,
-          trip.departureLocation.lng
-        );
+        // Points de prise en charge : départ initial + tous les arrêts intermédiaires
+        const pickupOptions = [
+          {
+            type: "departure" as const,
+            address: trip.departureLocation.address,
+            lat: trip.departureLocation.lat,
+            lng: trip.departureLocation.lng,
+            time: trip.departureTime,
+            stopOrder: 0,
+          },
+          ...((trip as any).stops || []).map((s: any) => ({
+            type: "stop" as const,
+            address: s.address,
+            lat: s.lat,
+            lng: s.lng,
+            time: s.estimatedTime,
+            stopOrder: s.stopOrder,
+          })),
+        ];
+
+        let bestPickup = pickupOptions[0];
+        let minDistanceMeters = getDistanceMeters(fromLat, fromLng, bestPickup.lat, bestPickup.lng);
+
+        for (let i = 1; i < pickupOptions.length; i++) {
+          const d = getDistanceMeters(fromLat, fromLng, pickupOptions[i].lat, pickupOptions[i].lng);
+          if (d < minDistanceMeters) {
+            minDistanceMeters = d;
+            bestPickup = pickupOptions[i];
+          }
+        }
 
         // Rayon toléré configuré par le conducteur (défaut: 500 m)
         const driverRadius = trip.pickupRadiusMeters ?? 500;
 
-        // Le lieu de départ du passager entre-t-il dans la zone tolérée ?
-        const inZone = distanceMeters <= driverRadius;
+        // Le lieu de départ du passager entre-t-il dans la zone tolérée du point le plus proche ?
+        const inZone = minDistanceMeters <= driverRadius;
 
         return {
           ...trip,
-          distanceMeters,
+          distanceMeters: minDistanceMeters,
           driverRadius,
           inZone,
+          matchedPickup: bestPickup,
         };
       });
 
@@ -606,30 +661,62 @@ function RideResultsContent() {
                       <span>{trip.availableSeats} {trip.availableSeats > 1 ? "places disponibles" : "place disponible"}</span>
                     </div>
 
-                    {/* Ligne 3 : Départ, Heure & Adresse */}
+                    {/* Ligne 3 : Départ / Étape de passage, Heure & Adresse */}
                     <div className="space-y-1 pt-0.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
-                          <span className="text-[11px] font-semibold text-[#1a3860]">
-                            Départ : {formatHour(trip.departureTime)}
-                          </span>
+                      {(trip as any).matchedPickup?.type === "stop" ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200/80">
+                                Étape {(trip as any).matchedPickup.stopOrder}
+                              </span>
+                              <span className="text-[11px] font-bold text-[#1a3860]">
+                                Passage : {formatHour((trip as any).matchedPickup.time)}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
+                              <span>{trip.status === "active" ? "En route" : "Disponible"}</span>
+                            </span>
+                          </div>
+                          <div className="pl-1">
+                            <p className="text-[11px] text-slate-700 font-semibold truncate max-w-[240px]">
+                              📍 {(trip as any).matchedPickup.address}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              Départ initial : {formatHour(trip.departureTime)} ({trip.departureLocation.address})
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
+                              <span className="text-[11px] font-semibold text-[#1a3860]">
+                                Départ : {formatHour(trip.departureTime)}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
+                              <span>
+                                {trip.status === "active" ? "En route" : "Disponible"}
+                              </span>
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between pl-5">
-                        <p className="text-[11px] text-[#7d8fa5] truncate max-w-[210px]">
-                          {trip.departureLocation.address}
-                        </p>
-
-                        {/* Badge de statut */}
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs">
-                          <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
-                          <span>
-                            {trip.status === "active" ? "En route" : "Disponible"}
-                          </span>
-                        </span>
-                      </div>
+                          <div className="pl-5">
+                            <p className="text-[11px] text-[#7d8fa5] truncate max-w-[210px]">
+                              {trip.departureLocation.address}
+                            </p>
+                            {(trip as any).stops && (trip as any).stops.length > 0 && (
+                              <p className="text-[10px] text-amber-700 font-medium">
+                                + {(trip as any).stops.length} étape{(trip as any).stops.length > 1 ? "s" : ""} sur le parcours
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -697,23 +784,57 @@ function RideResultsContent() {
 
                     {/* Itinéraire */}
                     <div className="space-y-1 pt-0.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
-                          <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
-                          <span className="text-[11px] font-semibold text-[#1a3860]">
-                            Départ : {formatHour(trip.departureTime)}
-                          </span>
+                      {(trip as any).matchedPickup?.type === "stop" ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200/80">
+                                Étape {(trip as any).matchedPickup.stopOrder}
+                              </span>
+                              <span className="text-[11px] font-bold text-[#1a3860]">
+                                Passage : {formatHour((trip as any).matchedPickup.time)}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs flex-shrink-0">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
+                              <span>Disponible</span>
+                            </span>
+                          </div>
+                          <div className="pl-1">
+                            <p className="text-[11px] text-slate-700 font-semibold truncate max-w-[240px]">
+                              📍 {(trip as any).matchedPickup.address}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              Départ initial : {formatHour(trip.departureTime)} ({trip.departureLocation.address})
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between pl-5">
-                        <p className="text-[11px] text-[#7d8fa5] truncate max-w-[210px]">
-                          {trip.departureLocation.address}
-                        </p>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs flex-shrink-0">
-                          <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
-                          <span>Disponible</span>
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
+                              <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
+                              <span className="text-[11px] font-semibold text-[#1a3860]">
+                                Départ : {formatHour(trip.departureTime)}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs flex-shrink-0">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
+                              <span>Disponible</span>
+                            </span>
+                          </div>
+                          <div className="pl-5">
+                            <p className="text-[11px] text-[#7d8fa5] truncate max-w-[210px]">
+                              {trip.departureLocation.address}
+                            </p>
+                            {(trip as any).stops && (trip as any).stops.length > 0 && (
+                              <p className="text-[10px] text-amber-700 font-medium">
+                                + {(trip as any).stops.length} étape{(trip as any).stops.length > 1 ? "s" : ""} sur le parcours
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

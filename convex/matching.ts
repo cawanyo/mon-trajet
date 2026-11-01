@@ -128,42 +128,73 @@ export function isTripMatchingDemand(trip: any, demand: any): boolean {
     return false;
   }
 
-  // 4. Vérification de l'HEURE
-  const tripDateObj = new Date(trip.departureTime);
-  const tripHour = tripDateObj.getHours() + tripDateObj.getMinutes() / 60;
+  // 4. Vérification de l'HEURE (au départ ou au passage d'un arrêt)
+  const checkTimeSlotMatch = (timestamp: number) => {
+    const tripDateObj = new Date(timestamp);
+    const tripHour = tripDateObj.getHours() + tripDateObj.getMinutes() / 60;
 
-  let slot = demand.desiredTimeSlot;
-  if (!slot && demand.note) {
-    const match = demand.note.match(/Créneau\s*:\s*([^•\(\n\r]+)/i);
-    if (match) slot = match[1].trim();
-  }
+    let slot = demand.desiredTimeSlot;
+    if (!slot && demand.note) {
+      const match = demand.note.match(/Créneau\s*:\s*([^•\(\n\r]+)/i);
+      if (match) slot = match[1].trim();
+    }
 
-  if (slot) {
+    if (!slot) return true;
+
     const rangeMatch = slot.match(/(\d{1,2})(?:[h:](\d{1,2}))?\s*-\s*(\d{1,2})(?:[h:](\d{1,2}))?/i);
     if (rangeMatch) {
       const startH = parseInt(rangeMatch[1], 10) + (rangeMatch[2] ? parseInt(rangeMatch[2], 10) / 60 : 0);
       const endH = parseInt(rangeMatch[3], 10) + (rangeMatch[4] ? parseInt(rangeMatch[4], 10) / 60 : 0);
 
       // Tolérance de 15 minutes autour du créneau
-      const isTimeCompatible = tripHour >= startH - 0.25 && tripHour <= endH + 0.25;
-      if (!isTimeCompatible) {
-        return false;
-      }
+      return tripHour >= startH - 0.25 && tripHour <= endH + 0.25;
+    }
+    return true;
+  };
+
+  // 5. Vérification de la DISTANCE DE DÉTOUR (au départ ou sur les arrêts intermédiaires)
+  const driverRadius = trip.pickupRadiusMeters ?? 500;
+
+  // Points de passage du trajet (départ + tous les arrêts intermédiaires)
+  const passagePoints = [
+    {
+      lat: trip.departureLocation.lat,
+      lng: trip.departureLocation.lng,
+      time: trip.departureTime,
+    },
+    ...(Array.isArray(trip.stops) ? trip.stops : []),
+  ];
+
+  let bestPoint = passagePoints[0];
+  let minPickupDistance = getDistanceMeters(
+    bestPoint.lat,
+    bestPoint.lng,
+    demand.pickupLocation.lat,
+    demand.pickupLocation.lng
+  );
+
+  for (let i = 1; i < passagePoints.length; i++) {
+    const pt = passagePoints[i];
+    const dist = getDistanceMeters(pt.lat, pt.lng, demand.pickupLocation.lat, demand.pickupLocation.lng);
+    if (dist < minPickupDistance) {
+      minPickupDistance = dist;
+      bestPoint = pt;
     }
   }
 
-  // 5. Vérification de la DISTANCE DE DÉTOUR
-  const driverRadius = trip.pickupRadiusMeters ?? 500;
+  // Vérifier la compatibilité horaire au point le plus proche
+  const effectiveTime = bestPoint.time ?? (bestPoint as any).estimatedTime ?? trip.departureTime;
+  if (!checkTimeSlotMatch(effectiveTime)) {
+    return false;
+  }
 
-  // Distance directe conducteur départ -> passager prise en charge
+  // Détour réel sur l'itinéraire (Départ -> Prise en charge -> Destination vs Départ -> Destination)
   const distDepToPickup = getDistanceMeters(
     trip.departureLocation.lat,
     trip.departureLocation.lng,
     demand.pickupLocation.lat,
     demand.pickupLocation.lng
   );
-
-  // Détour réel sur l'itinéraire (Départ -> Prise en charge -> Destination vs Départ -> Destination)
   const distDirect = getDistanceMeters(
     trip.departureLocation.lat,
     trip.departureLocation.lng,
@@ -179,9 +210,9 @@ export function isTripMatchingDemand(trip: any, demand: any): boolean {
   const extraDetour = Math.max(0, distDepToPickup + distPickupToDest - distDirect);
 
   // Le passager est accepté si :
-  // - Son point de départ est dans le rayon du conducteur (<= driverRadius)
-  // - OU le détour supplémentaire induit sur l'itinéraire est dans le rayon toléré (<= driverRadius)
-  const isDetourAcceptable = distDepToPickup <= driverRadius || extraDetour <= driverRadius;
+  // - Son point de départ est dans le rayon du conducteur ou d'un arrêt (minPickupDistance <= driverRadius)
+  // - OU le détour supplémentaire induit sur l'itinéraire est dans le rayon toléré (extraDetour <= driverRadius)
+  const isDetourAcceptable = minPickupDistance <= driverRadius || extraDetour <= driverRadius;
 
   if (!isDetourAcceptable) {
     return false;
