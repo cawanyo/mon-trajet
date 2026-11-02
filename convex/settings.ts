@@ -7,9 +7,11 @@ const DEFAULT_CHURCH = {
   address: "Église Centrale de la Grâce, 15 rue des Lilas, Paris",
   lat: 48.8566,
   lng: 2.3522,
+  phoneNumber: "",
+  email: "",
 };
 
-// 1. Obtenir l'adresse de l'église configurée par le manager
+// 1. Obtenir les coordonnées et contacts de l'église configurés par le manager
 export const getChurchSettings = query({
   args: {},
   handler: async (ctx) => {
@@ -22,11 +24,13 @@ export const getChurchSettings = query({
       address: settings.address,
       lat: settings.lat,
       lng: settings.lng,
+      phoneNumber: settings.phoneNumber ?? "",
+      email: settings.email ?? "",
     };
   },
 });
 
-// 2. Mettre à jour l'adresse de l'église (Manager ou Admin uniquement)
+// 2. Mettre à jour les informations et contacts de l'église (Manager ou Admin uniquement)
 export const updateChurchSettings = mutation({
   args: {
     token: v.string(),
@@ -34,12 +38,17 @@ export const updateChurchSettings = mutation({
     address: v.string(),
     lat: v.number(),
     lng: v.number(),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.token);
     if (!user || (user.role !== "manager" && user.role !== "admin")) {
-      throw new Error("Seul un responsable ou un administrateur peut modifier l'adresse de l'église.");
+      throw new Error("Seul un responsable ou un administrateur peut modifier les informations de l'église.");
     }
+
+    const cleanPhone = args.phoneNumber?.trim() ?? "";
+    const cleanEmail = args.email?.trim() ?? "";
 
     const existing = await ctx.db.query("churchSettings").first();
     if (existing) {
@@ -48,6 +57,8 @@ export const updateChurchSettings = mutation({
         address: args.address,
         lat: args.lat,
         lng: args.lng,
+        phoneNumber: cleanPhone,
+        email: cleanEmail,
         updatedAt: Date.now(),
       });
     } else {
@@ -56,6 +67,8 @@ export const updateChurchSettings = mutation({
         address: args.address,
         lat: args.lat,
         lng: args.lng,
+        phoneNumber: cleanPhone,
+        email: cleanEmail,
         updatedAt: Date.now(),
       });
     }

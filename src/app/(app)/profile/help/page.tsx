@@ -2,7 +2,10 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/components/ui/ToastProvider";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import {
   ChevronLeft,
@@ -58,6 +61,12 @@ const FAQ_LIST: FAQItem[] = [
 export default function ProfileHelpPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
+
+  const churchSettings = useQuery(api.settings.getChurchSettings);
+  const churchPhone = (churchSettings as any)?.phoneNumber?.trim();
+  const churchEmail = (churchSettings as any)?.email?.trim();
+  const churchName = churchSettings?.name;
 
   const [openIndex, setOpenIndex] = useState<number | null>(0);
   const [supportMessage, setSupportMessage] = useState("");
@@ -70,6 +79,19 @@ export default function ProfileHelpPage() {
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!supportMessage.trim()) return;
+
+    if (churchEmail) {
+      // Ouvre le client e-mail avec le message prérempli à destination de l'église
+      const subject = encodeURIComponent(`[Covoiturage ${churchName || "Église"}] Question de ${user?.name || "un membre"}`);
+      const body = encodeURIComponent(
+        `Bonjour l'équipe,\n\n${supportMessage}\n\n---\nEnvoyé par : ${user?.name || "Membre"} (${user?.phoneNumber || ""})`
+      );
+      window.location.href = `mailto:${churchEmail}?subject=${subject}&body=${body}`;
+      toast.success("Votre application e-mail s'ouvre pour envoyer votre message !");
+    } else {
+      toast.success("Votre message a bien été pris en compte.");
+    }
+
     setIsSent(true);
     setSupportMessage("");
     setTimeout(() => setIsSent(false), 5000);
@@ -103,34 +125,80 @@ export default function ProfileHelpPage() {
       </div>
 
       <div className="relative z-10 max-w-md mx-auto p-4 space-y-4">
-        {/* BANNIÈRE CONTACT PASTORAL RAPIDE */}
-        <div className="rounded-3xl glass-card bg-gradient-to-br from-[#175276] via-[#154665] to-[#0f354c] p-5 text-white shadow-md space-y-3">
+        {/* BANNIÈRE CONTACT PASTORAL RAPIDE AVEC LES COORDONNÉES DE L'ÉGLISE */}
+        <div className="rounded-3xl glass-card bg-gradient-to-br from-[#175276] via-[#154665] to-[#0f354c] p-5 text-white shadow-md space-y-3.5">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md">
               <Heart className="h-5 w-5 text-teal-300" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <h2 className="text-sm font-bold">Besoin d'un coup de main ?</h2>
-              <p className="text-xs text-white/80">L'équipe covoiturage de l'église est là pour vous</p>
+              <p className="text-xs text-white/80 truncate">
+                {churchName ? `Équipe covoiturage • ${churchName}` : "L'équipe covoiturage de l'église est là pour vous"}
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-            <a
-              href="tel:0123456789"
-              className="py-2.5 px-3 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md font-bold text-center flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-white/20"
-            >
-              <Phone className="h-3.5 w-3.5" />
-              <span>Appeler l'église</span>
-            </a>
-            <a
-              href="mailto:contact@eglise.fr"
-              className="py-2.5 px-3 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md font-bold text-center flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-white/20"
-            >
-              <Mail className="h-3.5 w-3.5" />
-              <span>Nous écrire</span>
-            </a>
+          {/* Boutons d'action rapides */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {churchPhone ? (
+              <a
+                href={`tel:${churchPhone.replace(/\s+/g, "")}`}
+                className="py-2.5 px-3 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md font-bold text-center flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-white/20"
+                title={`Appeler au ${churchPhone}`}
+              >
+                <Phone className="h-3.5 w-3.5 text-teal-300" />
+                <span className="truncate">Appeler l'église</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toast.info("Aucun numéro de téléphone renseigné pour l'église pour le moment.")}
+                className="py-2.5 px-3 rounded-2xl bg-white/10 opacity-70 font-semibold text-center flex items-center justify-center gap-1.5 border border-white/10 cursor-not-allowed"
+              >
+                <Phone className="h-3.5 w-3.5 text-slate-300" />
+                <span className="truncate">Tél. non renseigné</span>
+              </button>
+            )}
+
+            {churchEmail ? (
+              <a
+                href={`mailto:${churchEmail}?subject=${encodeURIComponent(`[Covoiturage ${churchName || "Église"}] Demande d'aide`)}`}
+                className="py-2.5 px-3 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md font-bold text-center flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-white/20"
+                title={`Écrire à ${churchEmail}`}
+              >
+                <Mail className="h-3.5 w-3.5 text-teal-300" />
+                <span className="truncate">Nous écrire</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toast.info("Aucun e-mail renseigné pour l'église pour le moment.")}
+                className="py-2.5 px-3 rounded-2xl bg-white/10 opacity-70 font-semibold text-center flex items-center justify-center gap-1.5 border border-white/10 cursor-not-allowed"
+              >
+                <Mail className="h-3.5 w-3.5 text-slate-300" />
+                <span className="truncate">Email non renseigné</span>
+              </button>
+            )}
           </div>
+
+          {/* Affichage des coordonnées directes de l'église */}
+          {(churchPhone || churchEmail) && (
+            <div className="pt-2 text-[11px] text-white/80 border-t border-white/15 space-y-1">
+              {churchPhone && (
+                <div className="flex items-center gap-2 truncate">
+                  <Phone className="h-3 w-3 text-teal-300 shrink-0" />
+                  <span className="font-medium text-white">{churchPhone}</span>
+                </div>
+              )}
+              {churchEmail && (
+                <div className="flex items-center gap-2 truncate">
+                  <Mail className="h-3 w-3 text-teal-300 shrink-0" />
+                  <span className="font-medium text-white">{churchEmail}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* QUESTIONS FRÉQUEMMENT POSÉES (ACCORDÉONS) */}

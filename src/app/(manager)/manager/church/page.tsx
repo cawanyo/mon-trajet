@@ -16,6 +16,8 @@ import {
   Check,
   Loader2,
   ShieldAlert,
+  Phone,
+  Mail,
 } from "lucide-react";
 
 export default function ManagerChurchPage() {
@@ -32,14 +34,18 @@ export default function ManagerChurchPage() {
     lat: 48.8566,
     lng: 2.3522,
   });
+  const [churchPhone, setChurchPhone] = useState("");
+  const [churchEmail, setChurchEmail] = useState("");
   const [isSavingChurch, setIsSavingChurch] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     if (churchSettings) {
-      setChurchName(churchSettings.name);
-      setChurchAddress(churchSettings.address);
+      setChurchName(churchSettings.name || "");
+      setChurchAddress(churchSettings.address || "");
       setChurchCoords({ lat: churchSettings.lat, lng: churchSettings.lng });
+      setChurchPhone((churchSettings as any).phoneNumber || "");
+      setChurchEmail((churchSettings as any).email || "");
     }
   }, [churchSettings]);
 
@@ -72,6 +78,8 @@ export default function ManagerChurchPage() {
         address: churchAddress,
         lat: churchCoords.lat,
         lng: churchCoords.lng,
+        phoneNumber: churchPhone.trim(),
+        email: churchEmail.trim(),
       });
       setSaveSuccess(true);
       toast.success("Informations de l'église enregistrées avec succès !");
@@ -129,21 +137,39 @@ export default function ManagerChurchPage() {
             )}
           </div>
 
-          <div>
+          <div className="space-y-2">
             <h2 className="text-base font-extrabold text-[#1a3860]">
               {churchSettings?.name || "Église Centrale"}
             </h2>
-            <p className="text-xs text-slate-600 mt-1 flex items-start gap-1.5">
+            <p className="text-xs text-slate-600 flex items-start gap-2">
               <MapPin className="h-3.5 w-3.5 text-[#138872] flex-shrink-0 mt-0.5" />
               <span>{churchSettings?.address || "Aucune adresse configurée pour le moment"}</span>
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+              <p className="text-xs text-slate-600 flex items-center gap-2">
+                <Phone className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                <span className="truncate">
+                  {(churchSettings as any)?.phoneNumber || (
+                    <span className="text-slate-400 italic">Aucun numéro</span>
+                  )}
+                </span>
+              </p>
+              <p className="text-xs text-slate-600 flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5 text-teal-600 flex-shrink-0" />
+                <span className="truncate">
+                  {(churchSettings as any)?.email || (
+                    <span className="text-slate-400 italic">Aucun e-mail</span>
+                  )}
+                </span>
+              </p>
+            </div>
           </div>
         </div>
 
         {/* FORMULAIRE DE MODIFICATION */}
         <div className="rounded-3xl glass-card bg-white/90 backdrop-blur-xl p-5 border border-white/90 shadow-xs space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#1a3860]">
-            Modifier les coordonnées
+            Modifier les coordonnées et contacts
           </h3>
 
           <form onSubmit={handleSaveChurch} className="space-y-4">
@@ -176,6 +202,42 @@ export default function ManagerChurchPage() {
               />
               <p className="text-[10px] text-slate-400 mt-1.5 pl-1">
                 Cette adresse est utilisée automatiquement comme destination finale ou point de départ pour l'ensemble des covoiturages.
+              </p>
+            </div>
+
+            {/* Numéro de téléphone de contact */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-blue-600" />
+                <span>Numéro de téléphone de l'église</span>
+              </label>
+              <input
+                type="tel"
+                value={churchPhone}
+                onChange={(e) => setChurchPhone(e.target.value)}
+                placeholder="Ex : +33 1 23 45 67 89 ou 06 12 34 56 78"
+                className="w-full rounded-2xl bg-slate-50/90 border border-slate-200/90 py-3 px-3.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#138872]/30 focus:border-[#138872]"
+              />
+              <p className="text-[10px] text-slate-400 mt-1.5 pl-1">
+                Ce numéro sera proposé aux fidèles sur la page Aide & Support pour appeler l'église en cas de besoin.
+              </p>
+            </div>
+
+            {/* Email de contact */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5 text-teal-600" />
+                <span>Adresse e-mail de l'église</span>
+              </label>
+              <input
+                type="email"
+                value={churchEmail}
+                onChange={(e) => setChurchEmail(e.target.value)}
+                placeholder="Ex : contact@mon-eglise.fr"
+                className="w-full rounded-2xl bg-slate-50/90 border border-slate-200/90 py-3 px-3.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#138872]/30 focus:border-[#138872]"
+              />
+              <p className="text-[10px] text-slate-400 mt-1.5 pl-1">
+                Cette adresse e-mail sera utilisée sur la page Aide & Support pour permettre aux membres d'écrire directement aux responsables.
               </p>
             </div>
 

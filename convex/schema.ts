@@ -185,6 +185,8 @@ export default defineSchema({
     address: v.string(),
     lat: v.number(),
     lng: v.number(),
+    phoneNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
     updatedAt: v.number(),
   }),
 });
