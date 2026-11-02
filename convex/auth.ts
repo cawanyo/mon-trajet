@@ -56,7 +56,12 @@ export const register = mutation({
   },
   handler: async (ctx, args) => {
     const cleanEmail = args.email.trim().toLowerCase();
-    const cleanPhone = args.phoneNumber.trim();
+    let cleanPhone = args.phoneNumber.trim().replace(/[\s\.\-\(\)]/g, "");
+    // Supprimer le 0 initial par erreur (ex: +330612345678 -> +33612345678 ou 0612345678 -> 612345678)
+    cleanPhone = cleanPhone.replace(/^(\+\d{1,4})0+(\d+)$/, "$1$2");
+    if (!cleanPhone.startsWith("+") && cleanPhone.startsWith("0")) {
+      cleanPhone = cleanPhone.replace(/^0+/, "");
+    }
     const cleanName = args.name.trim();
 
     if (!cleanName || !cleanEmail || !cleanPhone || !args.password) {

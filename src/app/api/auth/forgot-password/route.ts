@@ -39,12 +39,6 @@ export async function POST(req: NextRequest) {
 
     const { token, code, userName } = resetData;
 
-    // Détermination de l'URL de base pour le lien de réinitialisation
-    const hostHeader = req.headers.get("host") || "mon-trajet-gamma.vercel.app";
-    const protocol = hostHeader.includes("localhost") ? "http" : "https";
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${hostHeader}`;
-    const resetUrl = `${appUrl}/reset-password?token=${token}`;
-
     // 2. Configuration SMTP Gmail / Générique
     const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
     const smtpPort = Number(process.env.SMTP_PORT || 465);
@@ -66,7 +60,7 @@ export async function POST(req: NextRequest) {
     // Mode secours si le mot de passe SMTP n'est pas encore renseigné dans les .env
     if (!isConfigured) {
       console.warn("⚠️ [SMTP Non configuré] La variable SMTP_PASS est absente ou contient le modèle par défaut.");
-      console.info(`🔑 [Code Réinitialisation pour ${cleanEmail}] Code: ${code} | Lien: ${resetUrl}`);
+      console.info(`🔑 [Code Réinitialisation pour ${cleanEmail}] Code: ${code}`);
 
       return NextResponse.json({
         success: true,
@@ -98,24 +92,37 @@ export async function POST(req: NextRequest) {
           }
     );
 
-    // 4. Envoi de l'email HTML soigné et moderne
+    // 4. Envoi de l'email épuré : AUCUN LIEN (évite les spams) - UNIQUEMENT LE CODE
+    const mailText = `Bonjour ${userName || "cher membre"},
+
+Voici votre code de validation pour réinitialiser le mot de passe de votre compte Mon Trajet :
+
+${code}
+
+Ce code est valable pendant 15 minutes.
+Saisissez ce code directement sur la page de votre application pour définir votre nouveau mot de passe.
+
+Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email en toute sécurité. Votre mot de passe actuel reste inchangé.
+
+Mon Trajet • Covoiturage pour les cultes et rencontres d'église`;
+
     const mailHtml = `
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Réinitialisation de votre mot de passe</title>
+  <title>Code de validation - Mon Trajet</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7fb; color: #1e293b;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7fb; padding: 40px 15px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width: 520px; background-color: #ffffff; border-radius: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; overflow: hidden;" cellspacing="0" cellpadding="0">
+        <table role="presentation" width="100%" style="max-width: 500px; background-color: #ffffff; border-radius: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; overflow: hidden;" cellspacing="0" cellpadding="0">
           
           <!-- En-tête bleu marine épuré -->
           <tr>
-            <td style="background: linear-gradient(135deg, #1a3860 0%, #175276 100%); padding: 32px 30px; text-align: center;">
+            <td style="background: linear-gradient(135deg, #1a3860 0%, #175276 100%); padding: 30px; text-align: center;">
               <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">
                 🚗 Mon Trajet - Église
               </h1>
@@ -131,39 +138,27 @@ export async function POST(req: NextRequest) {
               <p style="margin: 0 0 16px 0; font-size: 15px; font-weight: 700; color: #0f172a;">
                 Bonjour ${userName || "cher membre"},
               </p>
-              <p style="margin: 0 0 24px 0; font-size: 13px; line-height: 1.6; color: #475569;">
-                Vous avez demandé la réinitialisation du mot de passe de votre compte. Voici votre code de sécurité à 6 chiffres :
+              <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                Voici votre code de validation pour réinitialiser le mot de passe de votre compte :
               </p>
 
-              <!-- Boîte avec le code à 6 chiffres -->
-              <div style="background-color: #f0f9ff; border: 1.5px dashed #0284c7; border-radius: 16px; padding: 20px; text-align: center; margin: 0 0 25px 0;">
-                <div style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0284c7; font-family: Courier, monospace;">
+              <!-- Boîte avec le code à 6 chiffres en grand -->
+              <div style="background-color: #f0f9ff; border: 2px dashed #0284c7; border-radius: 16px; padding: 22px; text-align: center; margin: 0 0 24px 0;">
+                <div style="font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #0284c7; font-family: Courier, monospace;">
                   ${code}
                 </div>
-                <div style="font-size: 11px; color: #0369a1; font-weight: 600; margin-top: 6px;">
+                <div style="font-size: 11px; color: #0369a1; font-weight: 600; margin-top: 8px;">
                   Code de sécurité (valable 15 minutes)
                 </div>
               </div>
 
-              <p style="margin: 0 0 20px 0; font-size: 13px; line-height: 1.6; color: #475569; text-align: center;">
-                Ou cliquez directement sur le bouton ci-dessous pour choisir votre nouveau mot de passe :
+              <p style="margin: 0 0 24px 0; font-size: 13px; line-height: 1.5; color: #64748b; text-align: center;">
+                Saisissez ce code directement sur la page de votre application pour définir votre nouveau mot de passe.
               </p>
-
-              <!-- Bouton d'action direct -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 25px;">
-                <tr>
-                  <td align="center">
-                    <a href="${resetUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 32px; border-radius: 50px; box-shadow: 0 6px 18px rgba(2, 132, 199, 0.35);">
-                      Réinitialiser mon mot de passe
-                    </a>
-                  </td>
-                </tr>
-              </table>
 
               <!-- Notice de sécurité -->
               <div style="border-top: 1px solid #f1f5f9; padding-top: 20px;">
                 <p style="margin: 0; font-size: 11px; line-height: 1.5; color: #94a3b8;">
-                  ⏱️ Ce lien et ce code expireront automatiquement dans <strong>15 minutes</strong>.<br>
                   🔒 Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email en toute sécurité. Votre mot de passe actuel reste inchangé.
                 </p>
               </div>
@@ -190,7 +185,8 @@ export async function POST(req: NextRequest) {
     await transporter.sendMail({
       from: smtpFrom,
       to: cleanEmail,
-      subject: "Réinitialisation de votre mot de passe - Mon Trajet",
+      subject: `Votre code de validation : ${code} - Mon Trajet`,
+      text: mailText,
       html: mailHtml,
     });
 
@@ -198,7 +194,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Un email contenant votre code et le lien de réinitialisation vous a été envoyé.",
+      message: "Un email contenant votre code de validation vous a été envoyé.",
     });
   } catch (error: any) {
     console.error("[ForgotPassword Error]", error);

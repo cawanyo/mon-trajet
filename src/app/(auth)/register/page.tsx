@@ -10,15 +10,20 @@ import { Mail, Lock, User, Phone, Eye, EyeOff, Loader2, ShieldCheck, AlertCircle
 
 export default function RegisterPage() {
   const { register } = useAuth();
-  const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
   const [countryCode, setCountryCode] = useState("+33");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [errorField, setErrorField] = useState<"name" | "email" | "phone" | "password" | null>(null);
+  const [errorField, setErrorField] = useState<
+    "lastName" | "firstName" | "email" | "phone" | "password" | "confirmPassword" | null
+  >(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,12 +31,21 @@ export default function RegisterPage() {
     setErrorField(null);
 
     // 1. Validation côté client
-    const cleanName = name.trim();
-    if (!cleanName || cleanName.length < 2) {
-      setError("Veuillez renseigner votre nom complet.");
-      setErrorField("name");
+    const cleanLastName = lastName.trim();
+    if (!cleanLastName || cleanLastName.length < 2) {
+      setError("Veuillez renseigner votre nom de famille.");
+      setErrorField("lastName");
       return;
     }
+
+    const cleanFirstName = firstName.trim();
+    if (!cleanFirstName || cleanFirstName.length < 2) {
+      setError("Veuillez renseigner votre prénom.");
+      setErrorField("firstName");
+      return;
+    }
+
+    const cleanName = `${cleanFirstName} ${cleanLastName}`;
 
     const cleanEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,7 +55,11 @@ export default function RegisterPage() {
       return;
     }
 
-    const cleanRawPhone = phoneNumber.replace(/[\s\.\-\(\)]/g, "");
+    // Nettoyer tous les espaces, tirets et séparateurs
+    let cleanRawPhone = phoneNumber.replace(/[\s\.\-\(\)]/g, "");
+    // Supprimer systématiquement tout 0 initial (ex: 06 12 34 56 78 -> 612345678)
+    cleanRawPhone = cleanRawPhone.replace(/^0+/, "");
+
     if (!cleanRawPhone || cleanRawPhone.length < 6) {
       setError("Veuillez saisir un numéro de téléphone portable valide.");
       setErrorField("phone");
@@ -54,11 +72,18 @@ export default function RegisterPage() {
       return;
     }
 
-    // 2. Formatage international du numéro
+    if (password !== confirmPassword) {
+      setError("Les mots de passe ne correspondent pas. Veuillez vérifier votre saisie.");
+      setErrorField("confirmPassword");
+      return;
+    }
+
+    // 2. Formatage international du numéro sans le zéro initial
     let formattedPhone = cleanRawPhone;
     if (!cleanRawPhone.startsWith("+")) {
-      const withoutLeadingZero = cleanRawPhone.startsWith("0") ? cleanRawPhone.slice(1) : cleanRawPhone;
-      formattedPhone = `${countryCode}${withoutLeadingZero}`;
+      formattedPhone = `${countryCode}${cleanRawPhone}`;
+    } else {
+      formattedPhone = cleanRawPhone.replace(/^(\+\d{1,4})0+(\d+)$/, "$1$2");
     }
 
     setIsLoading(true);
@@ -121,35 +146,65 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* Champ Nom complet */}
-          <div
-            className={`group relative z-10 flex items-center gap-3.5 rounded-2xl p-2.5 px-4 backdrop-blur-2xl transition-all ${
-              errorField === "name"
-                ? "bg-rose-50/50 border border-rose-300 ring-2 ring-rose-200/50"
-                : "bg-white/75 border border-white shadow-[0_4px_24px_rgba(2,132,199,0.06)] focus-within:shadow-[0_4px_28px_rgba(2,132,199,0.14)] focus-within:bg-white/95"
-            }`}
-          >
-            <User
-              className={`h-5 w-5 transition-colors flex-shrink-0 ${
-                errorField === "name" ? "text-rose-500" : "text-slate-500 group-focus-within:text-sky-600"
+          {/* Champs Nom et Prénom */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* Champ Nom */}
+            <div
+              className={`group relative z-10 flex items-center gap-2.5 rounded-2xl p-2.5 px-3.5 backdrop-blur-2xl transition-all ${
+                errorField === "lastName"
+                  ? "bg-rose-50/50 border border-rose-300 ring-2 ring-rose-200/50"
+                  : "bg-white/75 border border-white shadow-[0_4px_24px_rgba(2,132,199,0.06)] focus-within:shadow-[0_4px_28px_rgba(2,132,199,0.14)] focus-within:bg-white/95"
               }`}
-            />
-            <div className="flex-1 min-w-0">
-              <label className="block text-[11px] font-semibold text-slate-500 leading-tight">
-                Nom complet
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (error) setError(null);
-                  if (errorField === "name") setErrorField(null);
-                }}
-                placeholder="Jean Dupont"
-                className="w-full bg-transparent text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
+            >
+              <User
+                className={`h-4.5 w-4.5 transition-colors flex-shrink-0 ${
+                  errorField === "lastName" ? "text-rose-500" : "text-slate-500 group-focus-within:text-sky-600"
+                }`}
               />
+              <div className="flex-1 min-w-0">
+                <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
+                  Nom
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={lastName}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    if (error) setError(null);
+                    if (errorField === "lastName") setErrorField(null);
+                  }}
+                  placeholder="Dupont"
+                  className="w-full bg-transparent text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Champ Prénom */}
+            <div
+              className={`group relative z-10 flex items-center gap-2.5 rounded-2xl p-2.5 px-3.5 backdrop-blur-2xl transition-all ${
+                errorField === "firstName"
+                  ? "bg-rose-50/50 border border-rose-300 ring-2 ring-rose-200/50"
+                  : "bg-white/75 border border-white shadow-[0_4px_24px_rgba(2,132,199,0.06)] focus-within:shadow-[0_4px_28px_rgba(2,132,199,0.14)] focus-within:bg-white/95"
+              }`}
+            >
+              <div className="flex-1 min-w-0">
+                <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
+                  Prénom
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={firstName}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    if (error) setError(null);
+                    if (errorField === "firstName") setErrorField(null);
+                  }}
+                  placeholder="Jean"
+                  className="w-full bg-transparent text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
+                />
+              </div>
             </div>
           </div>
 
@@ -214,9 +269,19 @@ export default function RegisterPage() {
                 required
                 value={phoneNumber}
                 onChange={(e) => {
-                  setPhoneNumber(e.target.value);
+                  let val = e.target.value;
+                  // Si l'utilisateur tape un 0 initial par habitude, le retirer automatiquement
+                  if (val.startsWith("0") && val.length > 1) {
+                    val = val.replace(/^0+/, "");
+                  }
+                  setPhoneNumber(val);
                   if (error) setError(null);
                   if (errorField === "phone") setErrorField(null);
+                }}
+                onBlur={() => {
+                  if (phoneNumber.startsWith("0")) {
+                    setPhoneNumber(phoneNumber.replace(/^0+/, ""));
+                  }
                 }}
                 placeholder="6 12 34 56 78"
                 className="w-full bg-transparent text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
@@ -261,6 +326,50 @@ export default function RegisterPage() {
               className="text-slate-400 hover:text-slate-600 focus:outline-none p-1"
             >
               {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          {/* Champ Confirmer le mot de passe */}
+          <div
+            className={`group relative z-10 flex items-center gap-3.5 rounded-2xl p-2.5 px-4 backdrop-blur-2xl transition-all ${
+              errorField === "confirmPassword"
+                ? "bg-rose-50/50 border border-rose-300 ring-2 ring-rose-200/50"
+                : "bg-white/75 border border-white shadow-[0_4px_24px_rgba(2,132,199,0.06)] focus-within:shadow-[0_4px_28px_rgba(2,132,199,0.14)] focus-within:bg-white/95"
+            }`}
+          >
+            <Lock
+              className={`h-5 w-5 transition-colors flex-shrink-0 ${
+                errorField === "confirmPassword" ? "text-rose-500" : "text-slate-500 group-focus-within:text-sky-600"
+              }`}
+            />
+            <div className="flex-1 min-w-0">
+              <label className="block text-[11px] font-semibold text-slate-500 leading-tight">
+                Confirmer le mot de passe
+              </label>
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                required
+                minLength={6}
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (error) setError(null);
+                  if (errorField === "confirmPassword") setErrorField(null);
+                }}
+                placeholder="Retapez votre mot de passe"
+                className="w-full bg-transparent text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="text-slate-400 hover:text-slate-600 focus:outline-none p-1"
+            >
+              {showConfirmPassword ? (
                 <EyeOff className="h-4 w-4" />
               ) : (
                 <Eye className="h-4 w-4" />
