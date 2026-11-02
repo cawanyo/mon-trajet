@@ -81,7 +81,6 @@ function RideResultsContent() {
   // Filtre d'heure : Plage horaire personnalisée (par défaut : 05h à 24h)
   const [startHour, setStartHour] = useState<number>(5);
   const [endHour, setEndHour] = useState<number>(24);
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
   // Tri des résultats
   const [sortBy, setSortBy] = useState<"distance" | "time" | "seats">("distance");
@@ -101,10 +100,14 @@ function RideResultsContent() {
   const [needNote, setNeedNote] = useState("");
   const [isSubmittingNeed, setIsSubmittingNeed] = useState(false);
   const todayStr = useMemo(() => getLocalDateString(Date.now()), []);
+  const [currentDate, setCurrentDate] = useState<string>(searchDate || todayStr);
   const [needDate, setNeedDate] = useState<string>(searchDate || todayStr);
 
   useEffect(() => {
-    if (searchDate) setNeedDate(searchDate);
+    if (searchDate) {
+      setCurrentDate(searchDate);
+      setNeedDate(searchDate);
+    }
   }, [searchDate]);
 
   // Formatage de l'heure : "08:45"
@@ -117,15 +120,15 @@ function RideResultsContent() {
 
   // Libellé de la date affichée sur la pilule
   const dateDisplayLabel = useMemo(() => {
-    if (!searchDate) return "Aujourd'hui";
+    if (!currentDate) return "Aujourd'hui";
     const today = getLocalDateString(Date.now());
-    if (searchDate === today) return "Aujourd'hui";
+    if (currentDate === today) return "Aujourd'hui";
 
     const tomorrow = getLocalDateString(Date.now() + 86400000);
-    if (searchDate === tomorrow) return "Demain";
+    if (currentDate === tomorrow) return "Demain";
 
     try {
-      const [y, m, d] = searchDate.split("-").map(Number);
+      const [y, m, d] = currentDate.split("-").map(Number);
       const dateObj = new Date(y, m - 1, d);
       return dateObj.toLocaleDateString("fr-FR", {
         weekday: "short",
@@ -133,9 +136,9 @@ function RideResultsContent() {
         month: "short",
       });
     } catch {
-      return searchDate;
+      return currentDate;
     }
-  }, [searchDate]);
+  }, [currentDate]);
 
   // Filtrage et calcul des correspondances
   const processedTrips = useMemo(() => {
@@ -183,9 +186,9 @@ function RideResultsContent() {
         }
 
         // Filtrer par date selon l'horaire de passage au point correspondant
-        if (searchDate) {
+        if (currentDate) {
           const pointDateStr = getLocalDateString(bestPickup.time);
-          if (pointDateStr !== searchDate) return false;
+          if (pointDateStr !== currentDate) return false;
         }
 
         // Filtrer par plage horaire spécifiée (startHour à endHour)
@@ -258,7 +261,7 @@ function RideResultsContent() {
     const nearby = filtered.filter((t) => !t.inZone);
 
     return { inZone, nearby };
-  }, [availableTrips, fromLat, fromLng, requestedSeats, searchDate, startHour, endHour, sortBy]);
+  }, [availableTrips, fromLat, fromLng, requestedSeats, currentDate, startHour, endHour, sortBy]);
 
   // Envoi de la demande de réservation
   const handleConfirmBooking = async () => {
@@ -361,7 +364,7 @@ function RideResultsContent() {
     params.set("toLat", toLat.toString());
     params.set("toLng", toLng.toString());
     if (toAddress) params.set("toAddress", toAddress);
-    if (searchDate) params.set("date", searchDate);
+    if (currentDate) params.set("date", currentDate);
     params.set("seats", requestedSeats.toString());
     router.push(`/rides/${tripId}?${params.toString()}`);
   };
@@ -397,45 +400,94 @@ function RideResultsContent() {
             </div>
           </div>
 
-          {/* 2. BARRE DE FILTRE DE L'HEURE (PLAGE HORAIRE 05h - 24h PAR DÉFAUT) */}
-          <div className="flex items-center gap-2 relative">
-            {/* Overlay transparent pour fermer les popovers au clic à l'extérieur */}
-            {(showTimeDropdown || showSortMenu) && (
+          {/* 2. BARRE DE FILTRE : DATE + PLAGE HORAIRE DIRECTE (De 05h à 24h) + TRI */}
+          <div className="flex items-center gap-1.5 sm:gap-2 relative">
+            {/* Overlay transparent pour fermer le popover de tri au clic à l'extérieur */}
+            {showSortMenu && (
               <div
-                onClick={() => {
-                  setShowTimeDropdown(false);
-                  setShowSortMenu(false);
-                }}
+                onClick={() => setShowSortMenu(false)}
                 className="fixed inset-0 z-30 bg-black/10 backdrop-blur-[1px]"
               />
             )}
 
-            {/* Bouton Pilule de Créneau Horaire */}
-            <button
-              onClick={() => {
-                setShowTimeDropdown((v) => !v);
-                setShowSortMenu(false);
-              }}
-              className="flex-1 h-9.5 px-3 rounded-2xl glass-card bg-white/80 hover:bg-white border border-white/90 flex items-center justify-between text-xs font-semibold text-[#1a3860] shadow-2xs transition-all active:scale-[0.99] z-20"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <Search className="h-3.5 w-3.5 text-[#1a3860] flex-shrink-0" />
-                <span className="truncate">
-                  {dateDisplayLabel} • {formatHourLabel(startHour)} - {formatHourLabel(endHour)}
-                </span>
+            {/* Pilule Date (cliquable pour ajuster rapidement la date) */}
+            <div className="relative flex items-center gap-1.5 h-9.5 px-2.5 sm:px-3 rounded-2xl glass-card bg-white/85 hover:bg-white border border-white/90 text-xs font-bold text-[#1a3860] shadow-2xs transition-all shrink-0 cursor-pointer">
+              <Calendar className="h-3.5 w-3.5 text-[#175276] shrink-0" />
+              <span className="truncate max-w-[85px] sm:max-w-none">{dateDisplayLabel}</span>
+              <input
+                type="date"
+                value={currentDate || todayStr}
+                min={todayStr}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setCurrentDate(newDate);
+                  setNeedDate(newDate);
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set("date", newDate);
+                  router.replace(`/rides?${params.toString()}`, { scroll: false });
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                title="Modifier la date"
+              />
+            </div>
+
+            {/* Plage horaire affichée directement avec mise à jour automatique sans validation */}
+            <div className="flex-1 min-w-0 h-9.5 px-2 sm:px-2.5 rounded-2xl glass-card bg-white/85 border border-white/90 flex items-center justify-center gap-1 sm:gap-1.5 text-xs font-bold text-[#1a3860] shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500 shrink-0">De</span>
+              <div className="relative shrink-0">
+                <select
+                  value={startHour}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setStartHour(val);
+                    if (val >= endHour) {
+                      setEndHour(Math.min(24, val + 1));
+                    }
+                  }}
+                  className="h-7.5 pl-2 pr-4.5 rounded-xl bg-slate-100/90 hover:bg-slate-200/90 border border-slate-200 text-xs font-bold text-[#1a3860] focus:outline-none appearance-none cursor-pointer transition-colors"
+                  title="Heure de début"
+                >
+                  {START_HOURS.map((h) => (
+                    <option key={h} value={h}>
+                      {formatHourLabel(h)}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-400 text-[8px]">
+                  ▼
+                </div>
               </div>
-              <span className="text-[9px] text-[#7d8fa5] font-semibold ml-1">
-                {showTimeDropdown ? "▲" : "▼"}
-              </span>
-            </button>
+
+              <span className="text-[11px] font-bold text-slate-500 shrink-0">à</span>
+              <div className="relative shrink-0">
+                <select
+                  value={endHour}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setEndHour(val);
+                    if (val <= startHour) {
+                      setStartHour(Math.max(0, val - 1));
+                    }
+                  }}
+                  className="h-7.5 pl-2 pr-4.5 rounded-xl bg-slate-100/90 hover:bg-slate-200/90 border border-slate-200 text-xs font-bold text-[#1a3860] focus:outline-none appearance-none cursor-pointer transition-colors"
+                  title="Heure de fin"
+                >
+                  {END_HOURS.filter((h) => h > startHour).map((h) => (
+                    <option key={h} value={h}>
+                      {formatHourLabel(h)}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-400 text-[8px]">
+                  ▼
+                </div>
+              </div>
+            </div>
 
             {/* Bouton Filtres / Options de tri */}
             <button
-              onClick={() => {
-                setShowSortMenu((v) => !v);
-                setShowTimeDropdown(false);
-              }}
-              className={`h-9.5 w-9.5 rounded-2xl glass-card border border-white/90 flex items-center justify-center transition-all shadow-2xs active:scale-95 flex-shrink-0 z-20 ${
+              onClick={() => setShowSortMenu((v) => !v)}
+              className={`h-9.5 w-9.5 rounded-2xl glass-card border border-white/90 flex items-center justify-center transition-all shadow-2xs active:scale-95 shrink-0 z-20 ${
                 showSortMenu || sortBy !== "distance"
                   ? "bg-[#175276] text-white"
                   : "bg-white/80 text-[#1a3860] hover:bg-white"
@@ -444,68 +496,6 @@ function RideResultsContent() {
             >
               <SlidersHorizontal className="h-3.5 w-3.5 stroke-[2]" />
             </button>
-
-            {/* Bulle Sélection d'Heure Épurée : De ... à ... */}
-            {showTimeDropdown && (
-              <div className="absolute left-0 top-12.5 z-40 rounded-2xl glass-panel bg-white/95 backdrop-blur-2xl border border-white/90 px-3 py-2 shadow-xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
-                <span className="text-xs font-bold text-slate-500">De</span>
-                <div className="relative">
-                  <select
-                    value={startHour}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setStartHour(val);
-                      if (val >= endHour) {
-                        setEndHour(Math.min(24, val + 1));
-                      }
-                    }}
-                    className="h-8 pl-2.5 pr-6 rounded-xl bg-slate-100/90 border border-slate-200 text-xs font-bold text-[#1a3860] focus:outline-none appearance-none cursor-pointer"
-                  >
-                    {START_HOURS.map((h) => (
-                      <option key={h} value={h}>
-                        {formatHourLabel(h)}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400 text-[9px]">
-                    ▼
-                  </div>
-                </div>
-
-                <span className="text-xs font-bold text-slate-500">à</span>
-                <div className="relative">
-                  <select
-                    value={endHour}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setEndHour(val);
-                      if (val <= startHour) {
-                        setStartHour(Math.max(0, val - 1));
-                      }
-                    }}
-                    className="h-8 pl-2.5 pr-6 rounded-xl bg-slate-100/90 border border-slate-200 text-xs font-bold text-[#1a3860] focus:outline-none appearance-none cursor-pointer"
-                  >
-                    {END_HOURS.filter((h) => h > startHour).map((h) => (
-                      <option key={h} value={h}>
-                        {formatHourLabel(h)}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400 text-[9px]">
-                    ▼
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowTimeDropdown(false)}
-                  className="h-8 w-8 rounded-xl bg-[#175276] text-white hover:bg-[#134260] active:scale-95 transition-all flex items-center justify-center shadow-xs flex-shrink-0 ml-0.5"
-                  title="Fermer"
-                >
-                  <Check className="h-3.5 w-3.5 stroke-[2.5]" />
-                </button>
-              </div>
-            )}
 
             {/* Popover Menu de Tri */}
             {showSortMenu && (
