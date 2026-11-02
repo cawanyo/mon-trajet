@@ -22,6 +22,7 @@ import {
   Check,
   Eye,
   Route,
+  Loader2,
 } from "lucide-react";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { getOptimalWaypointsOrder, getDistanceMeters } from "@/lib/geo";
@@ -153,6 +154,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
 
   // Localisation réelle de l'utilisateur (s'il accepte)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
 
   // Filtre d'affichage (tous / voitures / besoins)
   const [filter, setFilter] = useState<"all" | "trips" | "needs">("all");
@@ -180,8 +182,13 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       return;
     }
 
+    if (isUserClick) {
+      setIsLocating(true);
+    }
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setIsLocating(false);
         const loc = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
@@ -201,6 +208,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
         console.warn("Échec GPS haute précision :", err.code, err.message);
         // Si permission expressément refusée
         if (err.code === 1) {
+          setIsLocating(false);
           if (isUserClick) {
             toast.error(
               "Position refusée. Sur iPhone : appuyez sur 'aA' dans Safari > Réglages du site web > Emplacement > Autoriser."
@@ -212,6 +220,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
         // Sinon (timeout, position indisponible), repli vers mode standard (cellulaire/wifi)
         navigator.geolocation.getCurrentPosition(
           (pos2) => {
+            setIsLocating(false);
             const loc2 = {
               lat: pos2.coords.latitude,
               lng: pos2.coords.longitude,
@@ -227,6 +236,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
             }
           },
           () => {
+            setIsLocating(false);
             if (isUserClick) {
               toast.error(
                 "Signal GPS introuvable. Vérifiez que la localisation est activée dans vos Réglages iPhone."
@@ -1056,10 +1066,10 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
 
       {/* 2. EN-TÊTE SUPÉRIEURE FLOTTANTE : "Autour de moi" + FILTRE (STYLE GLASSY DU TEMPLATE) */}
       <div
-        className="absolute inset-x-4 max-w-md mx-auto z-20"
+        className="absolute inset-x-4 max-w-md mx-auto z-20 space-y-2 pointer-events-none"
         style={{ top: "max(0.75rem, env(safe-area-inset-top, 0.75rem))" }}
       >
-        <div className="flex items-center justify-between rounded-3xl glass-panel px-4 py-3 shadow-[0_8px_30px_rgba(20,40,75,0.06)]">
+        <div className="flex items-center justify-between rounded-3xl glass-panel px-4 py-3 shadow-[0_8px_30px_rgba(20,40,75,0.06)] pointer-events-auto">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e6f4f0] text-[#38917d]">
               <MapPin className="h-5 w-5 stroke-[2.2]" />
@@ -1128,7 +1138,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl ${
                       filter === "needs"
-                        ? "bg-[#e8f5f1] text-[#138872] dark:bg-emerald-950 dark:text-emerald-400"
+                        ? "bg-[#e8f1fb] text-[#1f61b4] dark:bg-blue-950 dark:text-blue-400"
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-50"
                     }`}
                   >
@@ -1145,6 +1155,37 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
             <NotificationBellButton variant="glass-panel" />
           </div>
         </div>
+
+        {/* Petit message en bas du bloc 'Autour de moi' quand la localisation n'est pas activée */}
+        {!userLocation && (
+          <button
+            type="button"
+            onClick={() => requestGeolocation(true)}
+            className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl glass-panel bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-amber-200/90 dark:border-amber-900/50 shadow-md hover:bg-white active:scale-[0.98] transition-all text-left pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-300"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex-shrink-0">
+                {isLocating ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                ) : (
+                  <LocateFixed className="h-4 w-4" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-[#1a3860] dark:text-slate-100 leading-tight truncate">
+                  Votre localisation n'est pas activée
+                </p>
+                <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 leading-tight mt-0.5 truncate">
+                  {isLocating ? "Recherche de votre position..." : "Appuyez ici pour l'activer"}
+                </p>
+              </div>
+            </div>
+
+            <span className="flex-shrink-0 text-[10px] font-extrabold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 hover:bg-amber-200 px-2.5 py-1 rounded-full transition-colors border border-amber-300/80 dark:border-amber-700/80">
+              Activer
+            </span>
+          </button>
+        )}
       </div>
 
       {/* 3. FICHE FLOTTANTE DU TEMPLATE (STYLE FROSTED GLASS / VERRE POLI) */}
