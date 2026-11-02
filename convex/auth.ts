@@ -50,6 +50,8 @@ export async function getAuthenticatedUser(
 export const register = mutation({
   args: {
     name: v.string(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
     email: v.string(),
     phoneNumber: v.string(),
     password: v.string(),
@@ -62,7 +64,9 @@ export const register = mutation({
     if (!cleanPhone.startsWith("+") && cleanPhone.startsWith("0")) {
       cleanPhone = cleanPhone.replace(/^0+/, "");
     }
-    const cleanName = args.name.trim();
+    const cleanFirstName = args.firstName?.trim() || "";
+    const cleanLastName = args.lastName?.trim() || "";
+    const cleanName = args.name.trim() || `${cleanFirstName} ${cleanLastName}`.trim();
 
     if (!cleanName || !cleanEmail || !cleanPhone || !args.password) {
       throw new Error("Tous les champs sont obligatoires.");
@@ -103,6 +107,8 @@ export const register = mutation({
 
     const userId = await ctx.db.insert("users", {
       name: cleanName,
+      firstName: cleanFirstName || undefined,
+      lastName: cleanLastName || undefined,
       email: cleanEmail,
       phoneNumber: cleanPhone,
       passwordHash,

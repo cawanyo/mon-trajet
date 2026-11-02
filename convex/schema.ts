@@ -5,6 +5,8 @@ export default defineSchema({
   // Table des utilisateurs avec rôles stricts et statut d'approbation
   users: defineTable({
     name: v.string(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
     email: v.string(),
     phoneNumber: v.string(), // Obligatoire: Masqué par défaut sauf après validation d'un trajet
     passwordHash: v.optional(v.string()), // Hachage SHA-256 pour l'authentification native

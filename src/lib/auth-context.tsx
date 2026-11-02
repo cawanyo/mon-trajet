@@ -8,6 +8,8 @@ import { useRouter, usePathname } from "next/navigation";
 interface User {
   _id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phoneNumber: string;
   role: "user" | "manager" | "admin";
@@ -37,7 +39,15 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, phoneNumber: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => void;
+  register: (
+    name: string,
+    email: string,
+    phoneNumber: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -141,8 +151,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/");
   };
 
-  const register = async (name: string, email: string, phoneNumber: string, password: string) => {
-    const res = await registerMutation({ name, email, phoneNumber, password });
+  const loginWithToken = (newToken: string) => {
+    setToken(newToken);
+    try {
+      localStorage.setItem(TOKEN_KEY, newToken);
+      localStorage.setItem(ONBOARDING_KEY, "true");
+    } catch (e) {}
+    router.push("/");
+  };
+
+  const register = async (
+    name: string,
+    email: string,
+    phoneNumber: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ) => {
+    const res = await registerMutation({
+      name,
+      email,
+      phoneNumber,
+      password,
+      firstName,
+      lastName,
+    });
     setToken(res.token);
     try {
       localStorage.setItem(TOKEN_KEY, res.token);
@@ -176,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: effectiveUser,
         isLoading,
         login,
+        loginWithToken,
         register,
         logout,
       }}

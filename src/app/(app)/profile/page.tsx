@@ -47,7 +47,9 @@ export default function ProfilePage() {
     }
   };
 
-  const displayName = user?.name || "Mon Compte";
+  const displayName = user?.firstName
+    ? `${user.firstName} ${user.lastName || ""}`.trim()
+    : user?.name || "Mon Compte";
   const avatarUrl = user?.avatarUrl;
 
   return (
@@ -101,9 +103,9 @@ export default function ProfilePage() {
             <VerifiedTicker status={user?.status} size="sm" />
           </div>
 
-          {/* Sous-titre : Membre de l'église (respect strict de la consigne : pas le mot conducteur) */}
-          <p className="text-xs font-medium text-white/85 drop-shadow-xs mt-0.5">
-            Membre de l'église
+          {/* Sous-titre : Prénom • Membre de l'église */}
+          <p className="text-xs font-medium text-white/90 drop-shadow-xs mt-0.5">
+            {user?.firstName ? `${user.firstName} • Membre de l'église` : "Membre de l'église"}
           </p>
         </div>
       </div>
@@ -143,9 +145,16 @@ export default function ProfilePage() {
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#175276]">
                 <User className="h-4 w-4 stroke-[2.2]" />
               </div>
-              <span className="text-xs font-bold text-[#1a3860] group-hover:text-blue-600 transition-colors">
-                Mon profil
-              </span>
+              <div className="text-left">
+                <span className="text-xs font-bold text-[#1a3860] group-hover:text-blue-600 transition-colors block">
+                  Mon profil
+                </span>
+                {(user?.firstName || user?.name) && (
+                  <span className="text-[11px] text-slate-400 font-medium block">
+                    {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : user?.name}
+                  </span>
+                )}
+              </div>
             </div>
             <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
           </Link>

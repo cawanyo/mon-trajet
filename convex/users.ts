@@ -275,6 +275,8 @@ export const updateUserProfile = mutation({
   args: {
     token: v.optional(v.string()),
     name: v.optional(v.string()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
     bio: v.optional(v.string()),
@@ -294,7 +296,19 @@ export const updateUserProfile = mutation({
     if (!user) throw new Error("Authentification requise.");
 
     const patch: any = {};
-    if (args.name !== undefined) {
+    if (args.firstName !== undefined) {
+      patch.firstName = args.firstName.trim() || undefined;
+    }
+    if (args.lastName !== undefined) {
+      patch.lastName = args.lastName.trim() || undefined;
+    }
+    if (args.firstName !== undefined || args.lastName !== undefined) {
+      const fName = args.firstName !== undefined ? args.firstName.trim() : (user.firstName || "");
+      const lName = args.lastName !== undefined ? args.lastName.trim() : (user.lastName || "");
+      if (fName || lName) {
+        patch.name = `${fName} ${lName}`.trim();
+      }
+    } else if (args.name !== undefined) {
       const trimmed = args.name.trim();
       if (!trimmed) throw new Error("Le nom ne peut pas être vide.");
       patch.name = trimmed;

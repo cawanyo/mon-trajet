@@ -75,7 +75,8 @@ export default function EditProfilePage() {
   const vehicleInputRef = useRef<HTMLInputElement>(null);
 
   // États du formulaire
-  const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
 
@@ -94,7 +95,19 @@ export default function EditProfilePage() {
   // Initialisation à partir des données de l'utilisateur
   useEffect(() => {
     if (user) {
-      setName(user.name || "");
+      if ((user as any).firstName || (user as any).lastName) {
+        setFirstName((user as any).firstName || "");
+        setLastName((user as any).lastName || "");
+      } else if (user.name) {
+        const parts = user.name.trim().split(" ");
+        if (parts.length > 1) {
+          setFirstName(parts[0]);
+          setLastName(parts.slice(1).join(" "));
+        } else {
+          setFirstName(user.name);
+          setLastName("");
+        }
+      }
       setPhoneNumber(user.phoneNumber || "");
       setAvatarUrl(user.avatarUrl);
       setVehicleInfo((user as any).vehicleInfo || "");
@@ -149,8 +162,12 @@ export default function EditProfilePage() {
     e.preventDefault();
     if (!token) return;
 
-    if (!name.trim()) {
-      toast.error("Le nom est obligatoire.");
+    if (!lastName.trim()) {
+      toast.error("Le nom de famille est obligatoire.");
+      return;
+    }
+    if (!firstName.trim()) {
+      toast.error("Le prénom est obligatoire.");
       return;
     }
     if (!phoneNumber.trim()) {
@@ -158,11 +175,15 @@ export default function EditProfilePage() {
       return;
     }
 
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
+
     setIsSaving(true);
     try {
       await updateUserProfile({
         token,
-        name: name.trim(),
+        name: fullName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         phoneNumber: phoneNumber.trim(),
         avatarUrl,
         vehicleInfo: vehicleInfo.trim() || undefined,
@@ -224,12 +245,16 @@ export default function EditProfilePage() {
                   ) : avatarUrl ? (
                     <img
                       src={avatarUrl}
-                      alt={name}
+                      alt={`${firstName} ${lastName}`.trim()}
                       className="h-full w-full object-cover"
                     />
                   ) : (
                     <span className="text-xl font-bold text-[#175276]">
-                      {name ? name.charAt(0).toUpperCase() : "U"}
+                      {firstName
+                        ? firstName.charAt(0).toUpperCase()
+                        : lastName
+                        ? lastName.charAt(0).toUpperCase()
+                        : "U"}
                     </span>
                   )}
                 </div>
@@ -274,17 +299,31 @@ export default function EditProfilePage() {
             </div>
 
             <div className="border-t border-slate-100 pt-2 space-y-2.5 text-xs">
-              {/* Nom complet */}
-              <div className="space-y-1">
-                <label className="font-bold text-[#1a3860]">Nom complet</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Votre nom et prénom"
-                  className="w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#175276] font-medium text-slate-800"
-                />
+              {/* Nom et Prénom */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="font-bold text-[#1a3860]">Nom</label>
+                  <input
+                    type="text"
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Dupont"
+                    className="w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#175276] font-medium text-slate-800"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-[#1a3860]">Prénom</label>
+                  <input
+                    type="text"
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Jean"
+                    className="w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#175276] font-medium text-slate-800"
+                  />
+                </div>
               </div>
 
               {/* Email (Lecture seule - non modifiable) */}

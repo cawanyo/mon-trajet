@@ -88,7 +88,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      await register(cleanName, cleanEmail, formattedPhone, password);
+      await register(cleanName, cleanEmail, formattedPhone, password, cleanFirstName, cleanLastName);
     } catch (err: any) {
       const formatted = formatAuthError(err);
       setError(formatted);

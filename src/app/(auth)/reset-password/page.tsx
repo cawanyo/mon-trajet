@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { useAuth } from "@/lib/auth-context";
 import { MonTrajetLogo } from "@/components/ui/MonTrajetLogo";
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowLeft, Loader2, KeyRound, Mail } from "lucide-react";
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { loginWithToken } = useAuth();
 
   const urlToken = searchParams.get("token") || "";
 
@@ -68,17 +70,11 @@ function ResetPasswordForm() {
       });
 
       if (res && res.token) {
-        // Enregistrer la nouvelle session immédiatement
-        try {
-          localStorage.setItem("mon_trajet_session_token", res.token);
-          localStorage.setItem("has_seen_onboarding", "true");
-        } catch (e) {}
+        loginWithToken(res.token);
+        return;
       }
 
-      setIsSuccess(true);
-      setTimeout(() => {
-        router.push("/");
-      }, 2000);
+      router.push("/");
     } catch (err: any) {
       setErrorMessage(
         err.message?.replace(/\[CONVEX[^\]]*\]\s*/gi, "") ||

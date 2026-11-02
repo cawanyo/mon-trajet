@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { useAuth } from "@/lib/auth-context";
 import { MonTrajetLogo } from "@/components/ui/MonTrajetLogo";
 import {
   Mail,
@@ -24,6 +25,7 @@ type Step = "email" | "code" | "new_password" | "success";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const { loginWithToken } = useAuth();
 
   // État du processus pas-à-pas
   const [step, setStep] = useState<Step>("email");
@@ -148,13 +150,11 @@ export default function ForgotPasswordPage() {
       });
 
       if (res && res.token) {
-        try {
-          localStorage.setItem("mon_trajet_session_token", res.token);
-          localStorage.setItem("has_seen_onboarding", "true");
-        } catch (e) {}
+        loginWithToken(res.token);
+        return;
       }
 
-      setStep("success");
+      router.push("/");
     } catch (err: any) {
       const msg = err.message?.replace(/\[CONVEX[^\]]*\]\s*/gi, "");
       setErrorMessage(
