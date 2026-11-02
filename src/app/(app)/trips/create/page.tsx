@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
 import { AddressAutocompleteInput } from "@/components/ui/AddressAutocompleteInput";
+import { TripStopsManager } from "@/components/trips/TripStopsManager";
 import { reverseGeocode, geocodeAddress, estimateRouteDurations } from "@/lib/geo";
 import { useToast } from "@/components/ui/ToastProvider";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
@@ -250,6 +251,16 @@ function CreateTripContent() {
 
   const handleRemoveStop = (id: string) => {
     setStops((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleReorderStops = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setStops((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
   };
 
   const handleUpdateStop = (id: string, address: string, coords?: { lat: number; lng: number }) => {
@@ -778,71 +789,17 @@ function CreateTripContent() {
                 />
               </div>
 
-              {/* 2. Arrêts intermédiaires / étapes */}
-              <div className="space-y-2 pt-1 border-t border-slate-200/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-[#1a3860]">
-                      Arrêts intermédiaires {stops.length > 0 && `(${stops.length})`}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">Optionnel</span>
-                  </div>
-
-                  {stops.length < 5 && (
-                    <button
-                      type="button"
-                      onClick={handleAddStop}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition-all cursor-pointer active:scale-95"
-                    >
-                      <Plus className="h-3 w-3" />
-                      <span>Ajouter un arrêt</span>
-                    </button>
-                  )}
-                </div>
-
-                {stops.map((stop, index) => {
-                  const est = routeEstimations[index];
-                  return (
-                    <div
-                      key={stop.id}
-                      className="relative rounded-2xl bg-amber-50/40 border border-amber-200/60 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-black">
-                            {index + 1}
-                          </span>
-                          <span className="text-[11px] font-bold text-[#1a3860]">
-                            Arrêt {index + 1}
-                          </span>
-                          {est && (
-                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.2 rounded-full">
-                              ~{est.cumulativeDurationMinutes} min de route
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveStop(stop.id)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Supprimer cet arrêt"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-
-                      <AddressAutocompleteInput
-                        required
-                        value={stop.address}
-                        dropdownPosition="top"
-                        onChange={(addr, coords) => handleUpdateStop(stop.id, addr, coords)}
-                        placeholder={`Adresse de l'arrêt ${index + 1}...`}
-                        icon={MapPin}
-                        iconColor="text-amber-600"
-                      />
-                    </div>
-                  );
-                })}
+              {/* 2. Arrêts intermédiaires / étapes avec glisser-déposer & réorganisation */}
+              <div className="pt-1 border-t border-slate-200/50">
+                <TripStopsManager
+                  stops={stops}
+                  onAddStop={handleAddStop}
+                  onRemoveStop={handleRemoveStop}
+                  onUpdateStop={handleUpdateStop}
+                  onReorderStops={handleReorderStops}
+                  routeEstimations={routeEstimations}
+                  dropdownPosition="top"
+                />
               </div>
 
               {/* 3. Lieu de destination */}

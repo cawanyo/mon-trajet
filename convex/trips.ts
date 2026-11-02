@@ -400,6 +400,19 @@ export const updateTrip = mutation({
     departureTime: v.optional(v.number()),
     totalSeats: v.optional(v.number()),
     pickupRadiusMeters: v.optional(v.number()),
+    stops: v.optional(
+      v.array(
+        v.object({
+          lat: v.number(),
+          lng: v.number(),
+          address: v.string(),
+          estimatedTime: v.number(),
+          stopOrder: v.number(),
+          durationFromDepartureMinutes: v.optional(v.number()),
+          distanceFromDepartureMeters: v.optional(v.number()),
+        })
+      )
+    ),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -427,6 +440,7 @@ export const updateTrip = mutation({
     if (args.departureTime !== undefined) updates.departureTime = args.departureTime;
     if (args.pickupRadiusMeters !== undefined) updates.pickupRadiusMeters = args.pickupRadiusMeters;
     if (args.notes !== undefined) updates.notes = args.notes;
+    if (args.stops !== undefined) updates.stops = args.stops;
 
     if (args.totalSeats !== undefined) {
       if (args.totalSeats <= 0) {
@@ -453,6 +467,14 @@ export const updateTrip = mutation({
     }
 
     await ctx.db.patch(args.tripId, updates);
+
+    // Si arrêts, heure ou périmètre modifiés, réassocier automatiquement les demandes libres compatibles
+    try {
+      await matchTripWithOpenDemands(ctx, args.tripId);
+    } catch (e) {
+      console.warn("Erreur auto-matching après mise à jour :", e);
+    }
+
     return true;
   },
 });

@@ -31,7 +31,8 @@ import {
 } from "lucide-react";
 import { VerifiedTicker } from "@/components/ui/VerifiedTicker";
 import { GpsChooserModal } from "@/components/navigation/GpsChooserModal";
-import { getOptimalWaypointsOrder } from "@/lib/geo";
+import { getOptimalWaypointsOrder, estimateRouteDurations, geocodeAddress } from "@/lib/geo";
+import { TripStopsManager, TripStopItem } from "@/components/trips/TripStopsManager";
 import { useToast } from "@/components/ui/ToastProvider";
 
 function TripDetailsContent() {
@@ -190,6 +191,60 @@ function TripDetailsContent() {
   const [editTotalSeats, setEditTotalSeats] = useState(3);
   const [editPickupRadius, setEditPickupRadius] = useState(500);
   const [editNotes, setEditNotes] = useState("");
+  const [editStops, setEditStops] = useState<TripStopItem[]>([]);
+
+  const handleAddEditStop = () => {
+    if (editStops.length >= 5) {
+      toast.info("Maximum 5 arrêts intermédiaires par trajet.");
+      return;
+    }
+    setEditStops((prev) => [
+      ...prev,
+      { id: Math.random().toString(36).substring(2, 9), address: "", lat: 0, lng: 0 },
+    ]);
+  };
+
+  const handleRemoveEditStop = (id: string) => {
+    setEditStops((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleUpdateEditStop = (id: string, address: string, coords?: { lat: number; lng: number }) => {
+    setEditStops((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        return {
+          ...s,
+          address,
+          lat: coords?.lat ?? s.lat,
+          lng: coords?.lng ?? s.lng,
+        };
+      })
+    );
+  };
+
+  const handleReorderEditStops = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setEditStops((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const validEditStops = useMemo(() => {
+    return editStops.filter((s) => s.address.trim() && s.lat && s.lng);
+  }, [editStops]);
+
+  const editRouteEstimations = useMemo(() => {
+    if (!trip?.departureLocation || !trip?.destinationLocation) return [];
+    const pts = [{ lat: trip.departureLocation.lat, lng: trip.departureLocation.lng }];
+    for (const s of validEditStops) {
+      pts.push({ lat: s.lat, lng: s.lng });
+    }
+    pts.push({ lat: trip.destinationLocation.lat, lng: trip.destinationLocation.lng });
+    return estimateRouteDurations(pts);
+  }, [trip?.departureLocation, trip?.destinationLocation, validEditStops]);
 
   // État de la carte
   const [viewState, setViewState] = useState({
@@ -497,6 +552,14 @@ function TripDetailsContent() {
     setEditTotalSeats(Math.max(trip.totalSeats, occupiedSeats));
     setEditPickupRadius(trip.pickupRadiusMeters || 500);
     setEditNotes(trip.notes || "");
+    setEditStops(
+      (trip.stops || []).map((s: any, idx: number) => ({
+        id: `stop-${idx}-${Date.now()}`,
+        address: s.address,
+        lat: s.lat,
+        lng: s.lng,
+      }))
+    );
     setShowEditModal(true);
   };
 
@@ -514,14 +577,60 @@ function TripDetailsContent() {
       const depTimestamp = new Date(editDepartureTime).getTime();
       if (isNaN(depTimestamp)) {
         toast.error("Date ou heure invalide.");
+        setIsActionLoading(false);
         return;
       }
+
+      // Résolution géocodage des arrêts qui n'auraient pas encore de coordonnées valides
+      const resolvedStops: TripStopItem[] = [];
+      for (const s of editStops) {
+        if (!s.address.trim()) continue;
+        let coords = { lat: s.lat, lng: s.lng };
+        if (!coords.lat || !coords.lng) {
+          const geocoded = await geocodeAddress(s.address);
+          if (geocoded) {
+            coords = geocoded;
+          }
+        }
+        resolvedStops.push({
+          id: s.id,
+          address: s.address.trim(),
+          lat: coords.lat,
+          lng: coords.lng,
+        });
+      }
+
+      // Calcul des durées et des heures estimées de passage à chaque arrêt
+      const routePts = [
+        { lat: trip.departureLocation.lat, lng: trip.departureLocation.lng },
+        ...resolvedStops.map((s) => ({ lat: s.lat, lng: s.lng })),
+        { lat: trip.destinationLocation.lat, lng: trip.destinationLocation.lng },
+      ];
+      const estimations = estimateRouteDurations(routePts);
+
+      const formattedStops = resolvedStops.map((s, idx) => {
+        const est = estimations[idx];
+        const durationMinutes = est ? est.cumulativeDurationMinutes : (idx + 1) * 10;
+        const distanceMeters = est ? est.cumulativeDistanceMeters : (idx + 1) * 5000;
+        const estimatedTime = depTimestamp + durationMinutes * 60 * 1000;
+        return {
+          lat: s.lat,
+          lng: s.lng,
+          address: s.address,
+          estimatedTime,
+          stopOrder: idx,
+          durationFromDepartureMinutes: durationMinutes,
+          distanceFromDepartureMeters: distanceMeters,
+        };
+      });
+
       await updateTripMutation({
         token,
         tripId: trip._id,
         departureTime: depTimestamp,
         totalSeats: editTotalSeats,
         pickupRadiusMeters: editPickupRadius,
+        stops: formattedStops,
         notes: editNotes.trim() || undefined,
       });
       setShowEditModal(false);
@@ -1603,6 +1712,19 @@ function TripDetailsContent() {
                   onChange={(e) => setEditDepartureTime(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-800 focus:bg-white focus:border-[#138872] focus:outline-none transition-all"
                   required
+                />
+              </div>
+
+              {/* Arrêts intermédiaires avec ajout, suppression et glisser-déposer */}
+              <div className="pt-2 border-t border-slate-100">
+                <TripStopsManager
+                  stops={editStops}
+                  onAddStop={handleAddEditStop}
+                  onRemoveStop={handleRemoveEditStop}
+                  onUpdateStop={handleUpdateEditStop}
+                  onReorderStops={handleReorderEditStops}
+                  routeEstimations={editRouteEstimations}
+                  dropdownPosition="auto"
                 />
               </div>
 
