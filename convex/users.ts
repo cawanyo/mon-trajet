@@ -28,6 +28,23 @@ export const updatePushToken = mutation({
   },
 });
 
+// 2b. Accepter les conditions d'utilisation
+export const acceptTerms = mutation({
+  args: {
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx, args.token);
+    if (!user) throw new Error("Authentification requise.");
+
+    await ctx.db.patch(user._id, {
+      termsAcceptedAt: Date.now(),
+    });
+
+    return true;
+  },
+});
+
 // 3. Lister les utilisateurs en attente de validation (MANAGER & ADMIN)
 export const listPendingUsers = query({
   args: {

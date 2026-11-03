@@ -32,6 +32,7 @@ interface User {
     hidePhoneUntilConfirmed?: boolean;
     preferredDetourRadius?: number;
   };
+  termsAcceptedAt?: number;
 }
 
 interface AuthContextType {

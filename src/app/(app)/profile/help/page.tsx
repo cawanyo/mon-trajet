@@ -56,6 +56,11 @@ const FAQ_LIST: FAQItem[] = [
     answer:
       "Oui ! Allez dans 'Mes demandes', ouvrez la fiche de votre demande et cliquez sur 'Modifier'. Vous pouvez ajuster le lieu de prise en charge, la plage horaire, le nombre de passagers ou ajouter une note.",
   },
+  {
+    question: "Quelles sont les responsabilités en matière de sécurité et d'assurance ?",
+    answer:
+      "L'application met en relation les conducteurs et les passagers dans un esprit d'entraide communautaire. Chacun est tenu de faire preuve de vigilance et de prudence. L'église et l'application ne sont pas responsables de la sécurité des personnes ni des dangers ou accidents. Chaque conducteur est responsable de sa conduite et de son assurance.",
+  },
 ];
 
 export default function ProfileHelpPage() {

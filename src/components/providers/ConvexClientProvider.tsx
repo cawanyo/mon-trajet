@@ -5,6 +5,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { AuthProvider } from "@/lib/auth-context";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { NotificationManager } from "@/components/notifications/NotificationManager";
+import { TermsOfServiceModal } from "@/components/modals/TermsOfServiceModal";
 
 const convexUrl =
   process.env.NEXT_PUBLIC_CONVEX_URL ||
@@ -18,6 +19,7 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
       <AuthProvider>
         <ToastProvider>
           <NotificationManager />
+          <TermsOfServiceModal />
           {children}
         </ToastProvider>
       </AuthProvider>

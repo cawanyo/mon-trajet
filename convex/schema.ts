@@ -36,6 +36,7 @@ export default defineSchema({
     ),
     pushToken: v.optional(v.string()), // Token Web Push / PWA
     tokenIdentifier: v.optional(v.string()), // Identifiant Auth externe (optionnel si Clerk/OAuth)
+    termsAcceptedAt: v.optional(v.number()), // Date d'acceptation des conditions d'utilisation
     createdAt: v.number(),
   })
     .index("by_token", ["tokenIdentifier"])
