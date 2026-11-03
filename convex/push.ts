@@ -23,7 +23,7 @@ export const dispatchPushNotifications = internalAction({
     const appUrl =
       process.env.APP_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
-      "https://mon-trajet-gamma.vercel.app";
+      "https://mon-trajet.org";
 
     try {
       const response = await fetch(`${appUrl}/api/push/send`, {

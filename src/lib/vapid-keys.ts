@@ -8,4 +8,4 @@ export const VAPID_PRIVATE_KEY =
   "mMqXawOHImwHHF1R1tURh5Vni2uDc3nr7KKgFh7Xe8g";
 
 export const VAPID_SUBJECT =
-  process.env.VAPID_SUBJECT || "mailto:support@mon-trajet-eglise.fr";
+  process.env.VAPID_SUBJECT || "mailto:contact@mon-trajet.org";
