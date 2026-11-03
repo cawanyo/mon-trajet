@@ -210,9 +210,8 @@ export function isTripMatchingDemand(trip: any, demand: any): boolean {
   const extraDetour = Math.max(0, distDepToPickup + distPickupToDest - distDirect);
 
   // Le passager est accepté si :
-  // - Son point de départ est dans le rayon du conducteur ou d'un arrêt (minPickupDistance <= driverRadius)
-  // - OU le détour supplémentaire induit sur l'itinéraire est dans le rayon toléré (extraDetour <= driverRadius)
-  const isDetourAcceptable = minPickupDistance <= driverRadius || extraDetour <= driverRadius;
+  // - Son point de départ est bien dans la zone de détour du point de départ ou d'un des arrêts du conducteur
+  const isDetourAcceptable = minPickupDistance <= driverRadius;
 
   if (!isDetourAcceptable) {
     return false;

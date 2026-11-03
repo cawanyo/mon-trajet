@@ -140,6 +140,8 @@ export const listAvailableTrips = query({
                 name: driver.name,
                 avatarUrl: driver.avatarUrl,
                 status: driver.status, // Statut de validation pour le ticker
+                vehicleInfo: driver.vehicleInfo,
+                vehiclePhotoUrl: driver.vehiclePhotoUrl,
                 // Numéro masqué sur la carte publique !
               }
             : null,
@@ -226,6 +228,8 @@ export const getTripDetails = query({
         avatarUrl: driver.avatarUrl,
         status: driver.status,
         phoneNumber: canViewDriverPhone ? driver.phoneNumber : null,
+        vehicleInfo: driver.vehicleInfo,
+        vehiclePhotoUrl: driver.vehiclePhotoUrl,
       },
       requests: enrichedRequests,
       userRelationship: {
@@ -316,6 +320,8 @@ export const listMyTrips = query({
               name: driverDoc.name,
               status: driverDoc.status,
               phoneNumber: req.status === "accepted" ? driverDoc.phoneNumber : null,
+              vehicleInfo: driverDoc.vehicleInfo,
+              vehiclePhotoUrl: driverDoc.vehiclePhotoUrl,
             };
           }
         }
@@ -755,6 +761,8 @@ export const getNextUpcomingTrip = query({
             driverStatus: driver?.status,
             driverPhone: driver?.phoneNumber,
             driverAvatar: driver?.avatarUrl,
+            driverVehicleInfo: driver?.vehicleInfo,
+            driverVehiclePhotoUrl: driver?.vehiclePhotoUrl,
             departureLocation: trip.departureLocation,
             destinationLocation: trip.destinationLocation,
             departureAddress: trip.departureLocation.address,

@@ -195,7 +195,9 @@ function RideDetailsContent() {
               </p>
               <div className="flex items-center gap-1.5 text-xs text-[#7d8fa5] mt-1">
                 <Car className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
-                <span className="truncate">Toyota Corolla • Blanc</span>
+                <span className="truncate">
+                  {driver?.vehicleInfo || "Pas d'info sur la voiture"}
+                </span>
               </div>
             </div>
           </div>

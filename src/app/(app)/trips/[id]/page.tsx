@@ -805,7 +805,9 @@ function TripDetailsContent() {
                 </p>
                 <div className="flex items-center gap-1.5 text-xs text-[#7d8fa5] mt-1">
                   <Car className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
-                  <span className="truncate">Toyota Corolla • Blanc</span>
+                  <span className="truncate">
+                    {trip.driver?.vehicleInfo || "Pas d'info sur la voiture"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1647,7 +1649,7 @@ function TripDetailsContent() {
                   setSelectedRequest(null);
                 }}
                 disabled={isActionLoading}
-                className="w-full h-13 rounded-2xl bg-gradient-to-r from-[#1ea27c] via-[#24b087] to-[#2ecc9b] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1ea27c]/25 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
+                className="w-full h-16 rounded-xl bg-gradient-to-r from-[#1ea27c] via-[#24b087] to-[#2ecc9b] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#1ea27c]/25 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {isActionLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1662,7 +1664,7 @@ function TripDetailsContent() {
                   setSelectedRequest(null);
                 }}
                 disabled={isActionLoading}
-                className="w-full h-13 rounded-2xl bg-slate-100 hover:bg-slate-200 text-[#1a3860] text-sm font-bold flex items-center justify-center transition-all border border-slate-200/60 active:scale-[0.98]"
+                className="w-full h-16 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#1a3860] text-sm font-bold flex items-center justify-center transition-all border border-slate-200/60 active:scale-[0.98]"
               >
                 <span>Refuser</span>
               </button>

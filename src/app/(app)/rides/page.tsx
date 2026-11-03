@@ -142,7 +142,7 @@ function RideResultsContent() {
 
   // Filtrage et calcul des correspondances
   const processedTrips = useMemo(() => {
-    if (!availableTrips) return { inZone: [], nearby: [] };
+    if (!availableTrips) return [];
 
     const now = Date.now();
 
@@ -183,6 +183,14 @@ function RideResultsContent() {
             minDistanceMeters = d;
             bestPickup = pickupOptions[i];
           }
+        }
+
+        // Rayon toléré configuré par le conducteur (défaut: 500 m)
+        const driverRadius = trip.pickupRadiusMeters ?? 500;
+
+        // RÈGLE STRICTE : Le passager DOIT être dans la zone de détour du départ ou d'un arrêt
+        if (minDistanceMeters > driverRadius) {
+          return false;
         }
 
         // Filtrer par date selon l'horaire de passage au point correspondant
@@ -234,17 +242,12 @@ function RideResultsContent() {
           }
         }
 
-        // Rayon toléré configuré par le conducteur (défaut: 500 m)
         const driverRadius = trip.pickupRadiusMeters ?? 500;
-
-        // Le lieu de départ du passager entre-t-il dans la zone tolérée du point le plus proche ?
-        const inZone = minDistanceMeters <= driverRadius;
 
         return {
           ...trip,
           distanceMeters: minDistanceMeters,
           driverRadius,
-          inZone,
           matchedPickup: bestPickup,
         };
       });
@@ -256,11 +259,7 @@ function RideResultsContent() {
       return b.availableSeats - a.availableSeats;
     });
 
-    // 3. Séparer les trajets dans la zone tolérée et les autres trajets à proximité
-    const inZone = filtered.filter((t) => t.inZone);
-    const nearby = filtered.filter((t) => !t.inZone);
-
-    return { inZone, nearby };
+    return filtered;
   }, [availableTrips, fromLat, fromLng, requestedSeats, currentDate, startHour, endHour, sortBy]);
 
   // Envoi de la demande de réservation
@@ -411,7 +410,7 @@ function RideResultsContent() {
             )}
 
             {/* Pilule Date (cliquable pour ajuster rapidement la date) */}
-            <div className="relative flex items-center gap-1.5 h-9.5 px-2.5 sm:px-3 rounded-2xl glass-card bg-white/85 hover:bg-white border border-white/90 text-xs font-bold text-[#1a3860] shadow-2xs transition-all shrink-0 cursor-pointer">
+            <div className="relative flex items-center gap-1.5 h-11 px-2.5 sm:px-3 rounded-md glass-card bg-white/85 hover:bg-white border border-white/90 text-xs font-bold text-[#1a3860] shadow-2xs transition-all shrink-0 cursor-pointer">
               <Calendar className="h-3.5 w-3.5 text-[#175276] shrink-0" />
               <span className="truncate max-w-[85px] sm:max-w-none">{dateDisplayLabel}</span>
               <input
@@ -432,7 +431,7 @@ function RideResultsContent() {
             </div>
 
             {/* Plage horaire affichée directement avec mise à jour automatique sans validation */}
-            <div className="flex-1 min-w-0 h-9.5 px-2 sm:px-2.5 rounded-2xl glass-card bg-white/85 border border-white/90 flex items-center justify-center gap-1 sm:gap-1.5 text-xs font-bold text-[#1a3860] shadow-2xs">
+            <div className="flex-1 min-w-0 h-11 px-2 sm:px-2.5 rounded-xl glass-card bg-white/85 border border-white/90 flex items-center justify-center gap-1 sm:gap-1.5 text-xs font-bold text-[#1a3860] shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 shrink-0">De</span>
               <div className="relative shrink-0">
                 <select
@@ -453,9 +452,9 @@ function RideResultsContent() {
                     </option>
                   ))}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-400 text-[8px]">
+                {/* <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-400 text-[8px]">
                   ▼
-                </div>
+                </div> */}
               </div>
 
               <span className="text-[11px] font-bold text-slate-500 shrink-0">à</span>
@@ -478,9 +477,9 @@ function RideResultsContent() {
                     </option>
                   ))}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-400 text-[8px]">
+                {/* <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-400 text-[8px]">
                   ▼
-                </div>
+                </div> */}
               </div>
             </div>
 
@@ -557,15 +556,15 @@ function RideResultsContent() {
           <div className="flex justify-center py-20">
             <Loader2 className="h-7 w-7 animate-spin text-[#175276]" />
           </div>
-        ) : processedTrips.inZone.length === 0 && processedTrips.nearby.length === 0 ? (
-          /* AUCUN TRAJET CORRESPONDANT */
+        ) : processedTrips.length === 0 ? (
+          /* AUCUN TRAJET CORRESPONDANT DANS LA ZONE */
           <div className="rounded-3xl glass-card bg-white/85 backdrop-blur-xl p-8 text-center border border-white/90 space-y-3 shadow-xs">
             <Car className="h-10 w-10 mx-auto text-slate-300" />
             <h3 className="text-sm font-bold text-[#1a3860]">
-              Aucun trajet disponible pour le moment
+              Aucun trajet disponible dans votre zone
             </h3>
             <p className="text-xs text-[#7d8fa5] max-w-xs mx-auto">
-              Aucun conducteur ne passe dans votre périmètre pour ce créneau. Vous pouvez publier une recherche libre.
+              Aucun conducteur ne passe dans votre périmètre de détour pour ce créneau. Vous pouvez publier une recherche libre.
             </p>
             <div className="pt-2 flex flex-col gap-2">
               <button
@@ -577,7 +576,7 @@ function RideResultsContent() {
                 }}
                 className="w-full py-3 rounded-2xl bg-[#38917d] hover:bg-[#2e7d6b] text-white text-xs font-bold shadow-md shadow-[#38917d]/20 transition-all active:scale-[0.99]"
               >
-                Signaler mon besoin de trajet
+                Publier mon besoin de trajet
               </button>
               <button
                 onClick={() => router.push("/rides/search")}
@@ -589,247 +588,132 @@ function RideResultsContent() {
           </div>
         ) : (
           <div className="space-y-3.5">
-            {/* SECTION 1 : TRAJETS DONT LE LIEU DE DÉPART ENTRE DANS LA ZONE TOLÉRÉE */}
-            {processedTrips.inZone.length > 0 && (
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-1.5 px-1">
-                  <Sparkles className="h-3 w-3 text-[#138872]" />
-                  <span className="text-[11px] font-bold text-[#138872] tracking-wide">
-                    Dans votre zone de prise en charge ({processedTrips.inZone.length})
-                  </span>
-                </div>
+            {/* TRAJETS DONT LE LIEU DE DÉPART OU UN ARRÊT EST DANS LA ZONE DE DÉTOUR */}
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-1.5 px-1">
+                <Sparkles className="h-3 w-3 text-[#138872]" />
+                <span className="text-[11px] font-bold text-[#138872] tracking-wide">
+                  Dans votre zone de prise en charge ({processedTrips.length})
+                </span>
+              </div>
 
-                {processedTrips.inZone.map((trip) => (
-                  <div
-                    key={trip._id}
-                    onClick={() => handleOpenTripDetails(trip._id)}
-                    className="rounded-3xl glass-card bg-white/75 hover:bg-white/95 backdrop-blur-2xl p-4 border border-white/85 shadow-2xs space-y-2.5 transition-all cursor-pointer group active:scale-[0.99]"
-                  >
-                    {/* Ligne 1 : Conducteur + Note + Options */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {/* Avatar circulaire du conducteur */}
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 ring-2 ring-white shadow-xs overflow-hidden flex-shrink-0">
-                          {trip.driver?.avatarUrl ? (
-                            <img
-                              src={trip.driver.avatarUrl}
-                              alt={trip.driver.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-xs font-bold text-[#175276]">
-                              {trip.driver?.name?.charAt(0) || "C"}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Nom & Rôle */}
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-[#1a3860] group-hover:text-blue-600 transition-colors">
-                              {trip.driver?.name || "Conducteur"}
-                            </span>
-                            <VerifiedTicker status={trip.driver?.status} />
-                          </div>
-                          <p className="text-[10px] text-[#7d8fa5] mt-0.5">
-                            ⭐ 4,8 (24) • Conducteur
-                          </p>
-                        </div>
+              {processedTrips.map((trip) => (
+                <div
+                  key={trip._id}
+                  onClick={() => handleOpenTripDetails(trip._id)}
+                  className="rounded-3xl glass-card bg-white/75 hover:bg-white/95 backdrop-blur-2xl p-4 border border-white/85 shadow-2xs space-y-2.5 transition-all cursor-pointer group active:scale-[0.99]"
+                >
+                  {/* Ligne 1 : Conducteur + Note + Options */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar circulaire du conducteur */}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 ring-2 ring-white shadow-xs overflow-hidden flex-shrink-0">
+                        {trip.driver?.avatarUrl ? (
+                          <img
+                            src={trip.driver.avatarUrl}
+                            alt={trip.driver.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xs font-bold text-[#175276]">
+                            {trip.driver?.name?.charAt(0) || "C"}
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-bold text-[#7d8fa5]">
-                          {formatDistance(trip.distanceMeters)}
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-[#1a3860] transition-colors" />
+                      {/* Nom & Rôle */}
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-[#1a3860] group-hover:text-blue-600 transition-colors">
+                            {trip.driver?.name || "Conducteur"}
+                          </span>
+                          <VerifiedTicker status={trip.driver?.status} />
+                        </div>
+                        <p className="text-[10px] text-[#7d8fa5] mt-0.5">
+                          ⭐ 4,8 (24) • Conducteur
+                        </p>
                       </div>
                     </div>
 
-                    {/* Ligne 2 : Nombre de places disponibles avec icône voiture */}
-                    <div className="flex items-center gap-2 text-xs font-semibold text-[#1a3860]">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-bold text-[#7d8fa5]">
+                        {formatDistance(trip.distanceMeters)}
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-[#1a3860] transition-colors" />
+                    </div>
+                  </div>
+
+                  {/* Ligne 2 : Places disponibles & Info voiture */}
+                  <div className="flex items-center justify-between text-xs font-semibold text-[#1a3860]">
+                    <div className="flex items-center gap-2">
                       <Car className="h-3.5 w-3.5 text-[#138872] stroke-[2]" />
                       <span>{trip.availableSeats} {trip.availableSeats > 1 ? "places disponibles" : "place disponible"}</span>
                     </div>
-
-                    {/* Ligne 3 : Départ / Étape de passage, Heure & Adresse */}
-                    <div className="space-y-1 pt-0.5">
-                      {(trip as any).matchedPickup?.type === "stop" ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200/80">
-                                Étape {(trip as any).matchedPickup.stopOrder}
-                              </span>
-                              <span className="text-[11px] font-bold text-[#1a3860]">
-                                Passage : {formatHour((trip as any).matchedPickup.time)}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
-                              <span>{trip.status === "active" ? "En route" : "Disponible"}</span>
-                            </span>
-                          </div>
-                          <div className="pl-1">
-                            <p className="text-[11px] text-slate-700 font-semibold truncate max-w-[240px]">
-                              📍 {(trip as any).matchedPickup.address}
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              Départ initial : {formatHour(trip.departureTime)} ({trip.departureLocation.address})
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
-                              <span className="text-[11px] font-semibold text-[#1a3860]">
-                                Départ : {formatHour(trip.departureTime)}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
-                              <span>
-                                {trip.status === "active" ? "En route" : "Disponible"}
-                              </span>
-                            </span>
-                          </div>
-
-                          <div className="pl-5">
-                            <p className="text-[11px] text-[#7d8fa5] truncate max-w-[210px]">
-                              {trip.departureLocation.address}
-                            </p>
-                            {(trip as any).stops && (trip as any).stops.length > 0 && (
-                              <p className="text-[10px] text-amber-700 font-medium">
-                                + {(trip as any).stops.length} étape{(trip as any).stops.length > 1 ? "s" : ""} sur le parcours
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <span className="text-[11px] font-medium text-slate-500 truncate max-w-[170px]">
+                      {trip.driver?.vehicleInfo || "Pas d'info sur la voiture"}
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
 
-            {/* SECTION 2 : AUTRES TRAJETS DISPONIBLES À PROXIMITÉ (HORS RAYON TOLÉRÉ EXACT) */}
-            {processedTrips.nearby.length > 0 && (
-              <div className="space-y-2.5 pt-2">
-                <div className="px-1">
-                  <span className="text-[11px] font-bold text-[#7d8fa5] tracking-wide">
-                    {processedTrips.inZone.length > 0
-                      ? `Autres trajets à proximité (${processedTrips.nearby.length})`
-                      : `Trajets disponibles à proximité (${processedTrips.nearby.length})`}
-                  </span>
-                </div>
-
-                {processedTrips.nearby.map((trip) => (
-                  <div
-                    key={trip._id}
-                    onClick={() => handleOpenTripDetails(trip._id)}
-                    className="rounded-3xl glass-card bg-white/70 hover:bg-white/95 backdrop-blur-2xl p-4 border border-white/80 shadow-2xs space-y-2.5 transition-all cursor-pointer group active:scale-[0.99]"
-                  >
-                    {/* Conducteur */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 ring-2 ring-white shadow-xs overflow-hidden flex-shrink-0">
-                          {trip.driver?.avatarUrl ? (
-                            <img
-                              src={trip.driver.avatarUrl}
-                              alt={trip.driver.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-xs font-bold text-[#175276]">
-                              {trip.driver?.name?.charAt(0) || "C"}
-                            </span>
-                          )}
-                        </div>
-                        <div>
+                  {/* Ligne 3 : Départ / Étape de passage, Heure & Adresse */}
+                  <div className="space-y-1 pt-0.5">
+                    {(trip as any).matchedPickup?.type === "stop" ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-[#1a3860] group-hover:text-blue-600 transition-colors">
-                              {trip.driver?.name || "Conducteur"}
+                            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200/80">
+                              Étape {(trip as any).matchedPickup.stopOrder}
                             </span>
-                            <VerifiedTicker status={trip.driver?.status} />
+                            <span className="text-[11px] font-bold text-[#1a3860]">
+                              Passage : {formatHour((trip as any).matchedPickup.time)}
+                            </span>
                           </div>
-                          <p className="text-[10px] text-[#7d8fa5] mt-0.5">
-                            ⭐ 4,8 (24) • Conducteur
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
+                            <span>{trip.status === "active" ? "En route" : "Disponible"}</span>
+                          </span>
+                        </div>
+                        <div className="pl-1">
+                          <p className="text-[11px] text-slate-700 font-semibold truncate max-w-[240px]">
+                            📍 {(trip as any).matchedPickup.address}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            Départ initial : {formatHour(trip.departureTime)} ({trip.departureLocation.address})
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-bold text-[#7d8fa5]">
-                          {formatDistance(trip.distanceMeters)}
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-[#1a3860] transition-colors" />
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
+                            <span className="text-[11px] font-semibold text-[#1a3860]">
+                              Départ : {formatHour(trip.departureTime)}
+                            </span>
+                          </div>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
+                            <span>
+                              {trip.status === "active" ? "En route" : "Disponible"}
+                            </span>
+                          </span>
+                        </div>
+
+                        <div className="pl-5">
+                          <p className="text-[11px] text-[#7d8fa5] truncate max-w-[210px]">
+                            {trip.departureLocation.address}
+                          </p>
+                          {(trip as any).stops && (trip as any).stops.length > 0 && (
+                            <p className="text-[10px] text-amber-700 font-medium">
+                              + {(trip as any).stops.length} étape{(trip as any).stops.length > 1 ? "s" : ""} sur le parcours
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Places */}
-                    <div className="flex items-center gap-2 text-xs font-semibold text-[#1a3860]">
-                      <Car className="h-3.5 w-3.5 text-[#207567] stroke-[2]" />
-                      <span>{trip.availableSeats} {trip.availableSeats > 1 ? "places disponibles" : "place disponible"}</span>
-                    </div>
-
-                    {/* Itinéraire */}
-                    <div className="space-y-1 pt-0.5">
-                      {(trip as any).matchedPickup?.type === "stop" ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200/80">
-                                Étape {(trip as any).matchedPickup.stopOrder}
-                              </span>
-                              <span className="text-[11px] font-bold text-[#1a3860]">
-                                Passage : {formatHour((trip as any).matchedPickup.time)}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs flex-shrink-0">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
-                              <span>Disponible</span>
-                            </span>
-                          </div>
-                          <div className="pl-1">
-                            <p className="text-[11px] text-slate-700 font-semibold truncate max-w-[240px]">
-                              📍 {(trip as any).matchedPickup.address}
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              Départ initial : {formatHour(trip.departureTime)} ({trip.departureLocation.address})
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
-                              <MapPin className="h-3.5 w-3.5 text-[#2d6cb5] flex-shrink-0" />
-                              <span className="text-[11px] font-semibold text-[#1a3860]">
-                                Départ : {formatHour(trip.departureTime)}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f4f0] text-[#138872] border border-[#cce8e0] shadow-2xs flex-shrink-0">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#138872]" />
-                              <span>Disponible</span>
-                            </span>
-                          </div>
-                          <div className="pl-5">
-                            <p className="text-[11px] text-[#7d8fa5] truncate max-w-[210px]">
-                              {trip.departureLocation.address}
-                            </p>
-                            {(trip as any).stops && (trip as any).stops.length > 0 && (
-                              <p className="text-[10px] text-amber-700 font-medium">
-                                + {(trip as any).stops.length} étape{(trip as any).stops.length > 1 ? "s" : ""} sur le parcours
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
