@@ -23,7 +23,7 @@ export const dispatchPushNotifications = internalAction({
     const appUrl =
       process.env.APP_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
-      "https://mon-trajet.org";
+      "https://www.mon-trajet.org";
 
     try {
       const response = await fetch(`${appUrl}/api/push/send`, {
