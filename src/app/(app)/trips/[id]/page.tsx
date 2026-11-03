@@ -74,13 +74,6 @@ function TripDetailsContent() {
     return Boolean(user?._id && trip?.driverId && user._id === trip.driverId);
   }, [user?._id, trip?.driverId]);
 
-  // Le bouton "Y aller" n'est visible qu'à 45 min du trajet (ou si déjà actif)
-  const isWithin45Min = useMemo(() => {
-    if (!trip) return false;
-    if (trip.status === "active") return true;
-    return trip.departureTime - currentTime <= 45 * 60 * 1000;
-  }, [trip, currentTime]);
-
   const viewAs = searchParams.get("as");
   const isViewingAsPassenger = useMemo(() => {
     return !isDriver || viewAs === "passenger";
@@ -1464,37 +1457,6 @@ function TripDetailsContent() {
           className="px-5 pt-2 pb-3 bg-white/95 border-t border-slate-100/90 flex-shrink-0 space-y-2 shadow-2xs"
           style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0.75rem))" }}
         >
-          {/* BOUTON PRINCIPAL DE NAVIGATION GPS (APPROCHE HYBRIDE : GOOGLE MAPS / WAZE / APPLE PLANS) */}
-          {!isTripCancelled && !isTripCompleted && (
-            isWithin45Min ? (
-              <button
-                onClick={() => {
-                  setIsGpsPreviewMode(false);
-                  setShowGpsChooser(true);
-                }}
-                className="w-full h-11 sm:h-12 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:opacity-95 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2d6cb5]/25 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                <Navigation className="h-4 w-4 fill-white" />
-                <span>
-                  {trip.status === "active"
-                    ? "Continuer la navigation (GPS)"
-                    : "Y aller (Lancer le GPS)"}
-                </span>
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsGpsPreviewMode(true);
-                  setShowGpsChooser(true);
-                }}
-                className="w-full h-11 sm:h-12 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90 font-extrabold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-xs"
-              >
-                <Route className="h-4 w-4 text-[#2d6cb5]" />
-                <span>Voir l'itinéraire</span>
-              </button>
-            )
-          )}
-
           {/* BOUTONS D'ACTION INFÉRIEURS : MODIFIER & ANNULER */}
           <div className="grid grid-cols-2 gap-3">
             {/* Bouton Modifier */}

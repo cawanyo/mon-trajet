@@ -166,11 +166,66 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   const [showGpsChooser, setShowGpsChooser] = useState(false);
   const [isGpsPreviewMode, setIsGpsPreviewMode] = useState(false);
   const [gpsTarget, setGpsTarget] = useState<{
+    id?: string;
     lat: number;
     lng: number;
     address: string;
     name?: string;
   } | null>(null);
+
+  // Étapes et arrêts déjà complétés (traversés par un trait)
+  const [completedStepIds, setCompletedStepIds] = useState<string[]>(() => {
+    if (typeof window === "undefined" || !nextTrip?._id) return [];
+    try {
+      const raw = localStorage.getItem(`mon_trajet_completed_steps_${nextTrip._id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (!nextTrip?._id) return;
+    try {
+      const raw = localStorage.getItem(`mon_trajet_completed_steps_${nextTrip._id}`);
+      if (raw) {
+        setCompletedStepIds(JSON.parse(raw));
+      } else {
+        setCompletedStepIds([]);
+      }
+    } catch {
+      setCompletedStepIds([]);
+    }
+  }, [nextTrip?._id]);
+
+  const markStepCompleted = (stepId: string) => {
+    if (!nextTrip?._id) return;
+    setCompletedStepIds((prev) => {
+      if (prev.includes(stepId)) return prev;
+      const next = [...prev, stepId];
+      try {
+        localStorage.setItem(`mon_trajet_completed_steps_${nextTrip._id}`, JSON.stringify(next));
+      } catch (e) {
+        console.warn("Storage err:", e);
+      }
+      return next;
+    });
+  };
+
+  const toggleStepCompleted = (stepId: string) => {
+    if (!nextTrip?._id) return;
+    setCompletedStepIds((prev) => {
+      const next = prev.includes(stepId)
+        ? prev.filter((id) => id !== stepId)
+        : [...prev, stepId];
+      try {
+        localStorage.setItem(`mon_trajet_completed_steps_${nextTrip._id}`, JSON.stringify(next));
+      } catch (e) {
+        console.warn("Storage err:", e);
+      }
+      return next;
+    });
+  };
 
   // Position par défaut de la carte
   const [viewState, setViewState] = useState({
@@ -442,6 +497,12 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
     if (ok) {
       try {
         await onCompleteTrip?.(nextTrip._id);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(`mon_trajet_completed_steps_${nextTrip._id}`);
+          } catch {}
+        }
+        setCompletedStepIds([]);
         toast.success("Trajet terminé avec succès !");
       } catch (e) {
         console.warn("handleCompleteTrip err:", e);
@@ -501,8 +562,13 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   const handleLaunchNavigation = async () => {
     if (!nextTrip || nextTrip.role !== "driver") return;
 
+    if (gpsTarget?.id && nextTrip.status === "active") {
+      // Étape ou arrêt traversé par un trait (marqué comme fait) après redirection vers l'application GPS
+      markStepCompleted(gpsTarget.id);
+    }
+
     if (gpsTarget || isGpsPreviewMode) {
-      // Consultation de l'itinéraire ou étape spécifique : ouvre le GPS sans démarrer le trajet
+      // Consultation de l'itinéraire ou étape spécifique : ouvre le GPS sans altérer le statut du trajet
       return;
     }
 
@@ -566,10 +632,12 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       if (nextTrip.role === "driver") {
         if (!nextTrip.departureLocation || !nextTrip.destinationLocation) return;
         const start = nextTrip.currentLocation || nextTrip.departureLocation;
-        const remainingEscales = optimalEscales.slice(currentEscaleIndex);
-        const intermediateStops = (nextTrip.stops || []).map(
-          (s) => [s.lng, s.lat] as [number, number]
+        const remainingEscales = optimalEscales.filter(
+          (e) => !completedStepIds.includes(`escale-${e.requestId}`)
         );
+        const intermediateStops = (nextTrip.stops || [])
+          .filter((_, idx) => !completedStepIds.includes(`stop-${idx}`))
+          .map((s) => [s.lng, s.lat] as [number, number]);
         coords = [
           [start.lng, start.lat],
           ...intermediateStops,
@@ -653,7 +721,9 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
 
     if (nextTrip.role === "driver") {
       if (!nextTrip.departureLocation || !nextTrip.destinationLocation) return;
-      const remainingEscales = optimalEscales.slice(currentEscaleIndex);
+      const remainingEscales = optimalEscales.filter(
+        (e) => !completedStepIds.includes(`escale-${e.requestId}`)
+      );
       allPts = [
         nextTrip.currentLocation
           ? { ...nextTrip.currentLocation, address: "Conducteur" }
@@ -824,8 +894,14 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
 
             {/* Points d'escales ordonnés pour le meilleur parcours */}
             {optimalEscales.map((escale, idx) => {
-              const isPast = nextTrip.status === "active" && idx < currentEscaleIndex;
-              const isCurrent = nextTrip.status === "active" && idx === currentEscaleIndex;
+              const escaleStepId = `escale-${escale.requestId}`;
+              const isPast =
+                nextTrip.status === "active" &&
+                (completedStepIds.includes(escaleStepId) || idx < currentEscaleIndex);
+              const isCurrent =
+                nextTrip.status === "active" &&
+                !completedStepIds.includes(escaleStepId) &&
+                idx === currentEscaleIndex;
 
               return (
                 <Marker
@@ -882,24 +958,42 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
             })}
 
             {/* Arrêts intermédiaires déclarés */}
-            {(nextTrip.stops || []).map((stop, idx) => (
-              <Marker
-                key={`stop-${idx}`}
-                latitude={stop.lat}
-                longitude={stop.lng}
-                anchor="bottom"
-              >
-                <div className="relative flex flex-col items-center">
-                  <div className="px-2 py-0.5 mb-1 rounded-md bg-amber-600 text-white text-[9px] font-bold shadow-xs whitespace-nowrap max-w-[150px] truncate">
-                    Arrêt {idx + 1}
+            {(nextTrip.stops || []).map((stop, idx) => {
+              const stopStepId = `stop-${idx}`;
+              const isStopPast =
+                nextTrip.status === "active" && completedStepIds.includes(stopStepId);
+
+              return (
+                <Marker
+                  key={`stop-${idx}`}
+                  latitude={stop.lat}
+                  longitude={stop.lng}
+                  anchor="bottom"
+                >
+                  <div className={`relative flex flex-col items-center ${isStopPast ? "opacity-50" : ""}`}>
+                    <div
+                      className={`px-2 py-0.5 mb-1 rounded-md text-white text-[9px] font-bold shadow-xs whitespace-nowrap max-w-[150px] truncate ${
+                        isStopPast ? "bg-slate-400" : "bg-amber-600"
+                      }`}
+                    >
+                      Arrêt {idx + 1} {isStopPast && "✓"}
+                    </div>
+                    <div
+                      className={`relative flex h-7 w-7 items-center justify-center rounded-full text-white font-black text-xs ring-2 ring-white shadow-md ${
+                        isStopPast ? "bg-slate-400" : "bg-amber-500"
+                      }`}
+                    >
+                      {isStopPast ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : idx + 1}
+                    </div>
+                    <div
+                      className={`h-2 w-2 rotate-45 -mt-1 ring-1 ring-white ${
+                        isStopPast ? "bg-slate-400" : "bg-amber-500"
+                      }`}
+                    />
                   </div>
-                  <div className="relative flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-white font-black text-xs ring-2 ring-white shadow-md">
-                    {idx + 1}
-                  </div>
-                  <div className="h-2 w-2 rotate-45 bg-amber-500 -mt-1 ring-1 ring-white" />
-                </div>
-              </Marker>
-            ))}
+                </Marker>
+              );
+            })}
 
             {/* Destination finale */}
             {nextTrip.destinationLocation && (
@@ -1409,153 +1503,95 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                 </div>
               </div>
 
-              {/* Section Conducteur : Soit en cours (Active) avec prochaine escale et bouton appeler, soit planifié */}
+              {/* Section Conducteur : Vue complète des détails (planifié ou actif) */}
               {nextTrip.role === "driver" ? (
-                nextTrip.status === "active" ? (
-                  /* 1. CONDUCTEUR EN ROUTE (TRAJET ACTIF) : PROCHAINE ESCALE + BOUTON APPELER JUSQU'À L'ÉGLISE */
-                  <div className="space-y-3">
-                    {!isAllEscalesDone && currentEscale ? (
-                      <div className="rounded-2xl bg-gradient-to-r from-teal-50/90 to-blue-50/90 border border-[#138872]/30 p-3.5 space-y-2.5 shadow-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#138872] flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-                            Prochaine escale ({currentEscaleIndex + 1}/{optimalEscales.length})
-                          </span>
-                          <button
-                            onClick={() => setShowGpsChooser(true)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-extrabold shadow-2xs active:scale-95 transition-all"
+                <div className="space-y-2.5">
+                  <div className="rounded-2xl bg-slate-50/90 border border-slate-200/70 p-3 max-h-48 overflow-y-auto space-y-2.5 text-xs">
+                    {/* 1. Point de départ */}
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex flex-col items-center">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1a3860] text-white text-[10px] font-bold">
+                          D
+                        </div>
+                        <div className="w-0.5 h-6 bg-slate-300 my-0.5" />
+                      </div>
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <p className="font-bold text-[#1a3860] text-[11px] uppercase tracking-wide">
+                          Point de départ
+                        </p>
+                        <p className="text-slate-600 text-xs truncate">
+                          {nextTrip.departureLocation?.address || "Votre position"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 2. Escales ordonnées pour le meilleur parcours */}
+                    {optimalEscales.length > 0 ? (
+                      optimalEscales.map((escale, idx) => {
+                        const escaleStepId = `escale-${escale.requestId}`;
+                        const isEscaleDone =
+                          nextTrip.status === "active" &&
+                          completedStepIds.includes(escaleStepId);
+
+                        return (
+                          <div
+                            key={escale.requestId}
+                            className={`flex items-start gap-2.5 transition-all ${
+                              isEscaleDone ? "opacity-60" : ""
+                            }`}
                           >
-                            <Navigation className="h-3 w-3 text-[#2d6cb5]" />
-                            <span>GPS</span>
-                          </button>
-                        </div>
-
-                        {/* Fiche Passager avec logo / bouton pour appeler la personne */}
-                        <div className="flex items-center justify-between gap-3 bg-white/95 p-3 rounded-2xl border border-white/90 shadow-xs">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e6f4f0] text-[#138872] font-black text-sm flex-shrink-0">
-                              {currentEscale.passengerName?.[0] || "P"}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <h4 className="text-sm font-bold text-[#1a3860] truncate">
-                                  {currentEscale.passengerName}
-                                </h4>
-                                <VerifiedTicker status={currentEscale.passengerStatus} />
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
-                                <MapPin className="h-3 w-3 text-[#138872] flex-shrink-0" />
-                                <span className="truncate">{currentEscale.pickupLocation.address}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* BOUTON AVEC LE LOGO POUR APPELER LA PERSONNE DIRECTEMENT */}
-                          {currentEscale.passengerPhone ? (
-                            <a
-                              href={`tel:${currentEscale.passengerPhone}`}
-                              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#138872] hover:bg-[#0f6c5b] text-white text-xs font-bold shadow-md shadow-[#138872]/20 active:scale-95 transition-all flex-shrink-0"
-                              title={`Appeler ${currentEscale.passengerName}`}
-                            >
-                              <Phone className="h-3.5 w-3.5 fill-white" />
-                              <span>Appeler</span>
-                            </a>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 italic">Pas de tél</span>
-                          )}
-                        </div>
-
-                        {/* Bouton pour valider la prise en charge et passer à la prochaine étape */}
-                        <button
-                          onClick={handleAdvanceEscale}
-                          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] hover:opacity-95 active:scale-98 text-white font-extrabold text-xs shadow-md shadow-[#1b7f80]/20 transition-all cursor-pointer"
-                        >
-                          <Check className="h-4 w-4 stroke-[3]" />
-                          <span>Passager récupéré (Étape suivante)</span>
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      /* En route vers la destination finale (Église) */
-                      <div className="rounded-2xl bg-gradient-to-r from-blue-50/90 to-teal-50/90 border border-[#2d6cb5]/30 p-3.5 space-y-2.5 shadow-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#2d6cb5] flex items-center gap-1.5">
-                            <Church className="h-3.5 w-3.5 text-[#2d6cb5]" />
-                            Destination finale
-                          </span>
-                          <button
-                            onClick={() => setShowGpsChooser(true)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-extrabold shadow-2xs active:scale-95 transition-all"
-                          >
-                            <Navigation className="h-3 w-3 text-[#2d6cb5]" />
-                            <span>GPS</span>
-                          </button>
-                        </div>
-
-                        <div className="bg-white/95 p-3 rounded-2xl border border-white/90 space-y-1">
-                          <p className="text-xs font-bold text-[#1a3860]">
-                            {optimalEscales.length > 0
-                              ? "Tous les passagers sont à bord ! Direction l'église."
-                              : "Trajet direct en cours vers l'église."}
-                          </p>
-                          <p className="text-xs text-slate-600 truncate flex items-center gap-1.5">
-                            <MapPin className="h-3 w-3 text-[#2d6cb5] flex-shrink-0" />
-                            <span>{nextTrip.destinationLocation?.address || churchLocation.address}</span>
-                          </p>
-                        </div>
-
-                        <button
-                          onClick={handleCompleteTrip}
-                          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-[#138872] to-[#2d6cb5] hover:opacity-95 active:scale-98 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer"
-                        >
-                          <Check className="h-4 w-4 stroke-[3]" />
-                          <span>Terminer le trajet (Arrivé à destination)</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* 2. TRAJET PLANIFIÉ (PAS ENCORE LANCÉ) : VUE RÉCAPITULATIVE ET BOUTON Y ALLER */
-                  <div className="space-y-2.5">
-                    <div className="rounded-2xl bg-slate-50/90 border border-slate-200/70 p-3 max-h-48 overflow-y-auto space-y-2.5 text-xs">
-                      {/* 1. Point de départ */}
-                      <div className="flex items-start gap-2.5">
-                        <div className="flex flex-col items-center">
-                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1a3860] text-white text-[10px] font-bold">
-                            D
-                          </div>
-                          <div className="w-0.5 h-6 bg-slate-300 my-0.5" />
-                        </div>
-                        <div className="min-w-0 flex-1 pt-0.5">
-                          <p className="font-bold text-[#1a3860] text-[11px] uppercase tracking-wide">
-                            Point de départ
-                          </p>
-                          <p className="text-slate-600 text-xs truncate">
-                            {nextTrip.departureLocation?.address || "Votre position"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* 2. Escales ordonnées pour le meilleur parcours */}
-                      {optimalEscales.length > 0 ? (
-                        optimalEscales.map((escale, idx) => (
-                          <div key={escale.requestId} className="flex items-start gap-2.5">
                             <div className="flex flex-col items-center">
-                              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#138872] text-white text-[10px] font-extrabold shadow-xs">
-                                {idx + 1}
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  nextTrip.status === "active" &&
+                                  toggleStepCompleted(escaleStepId)
+                                }
+                                className={`flex h-5 w-5 items-center justify-center rounded-full text-white text-[10px] font-extrabold shadow-xs transition-colors ${
+                                  isEscaleDone ? "bg-slate-400" : "bg-[#138872]"
+                                }`}
+                                title={
+                                  isEscaleDone
+                                    ? "Étape effectuée (cliquer pour réactiver)"
+                                    : `Escale ${idx + 1}`
+                                }
+                              >
+                                {isEscaleDone ? (
+                                  <Check className="h-3 w-3 stroke-[3]" />
+                                ) : (
+                                  idx + 1
+                                )}
+                              </button>
                               <div className="w-0.5 h-6 bg-slate-300 my-0.5" />
                             </div>
                             <div className="min-w-0 flex-1 pt-0.5">
                               <div className="flex items-center justify-between gap-1">
-                                <p className="font-bold text-[#138872] text-[11px] truncate">
+                                <p
+                                  className={`font-bold text-[11px] truncate transition-colors ${
+                                    isEscaleDone
+                                      ? "line-through text-slate-400 decoration-slate-400 decoration-2"
+                                      : "text-[#138872]"
+                                  }`}
+                                >
                                   Escale {idx + 1} : {escale.passengerName}
                                 </p>
-                                <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                <span
+                                  className={`text-[10px] font-medium whitespace-nowrap px-1.5 py-0.5 rounded border transition-colors ${
+                                    isEscaleDone
+                                      ? "line-through text-slate-400 bg-slate-100 border-slate-200"
+                                      : "text-slate-500 bg-white border-slate-200"
+                                  }`}
+                                >
                                   {escale.seatsRequested} pl.
                                 </span>
                               </div>
-                              <p className="text-slate-600 text-xs truncate mt-0.5">
+                              <p
+                                className={`text-xs truncate mt-0.5 transition-colors ${
+                                  isEscaleDone
+                                    ? "line-through text-slate-400 decoration-slate-400"
+                                    : "text-slate-600"
+                                }`}
+                              >
                                 {escale.pickupLocation.address}
                               </p>
                             </div>
@@ -1577,6 +1613,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setGpsTarget({
+                                    id: escaleStepId,
                                     lat: escale.pickupLocation.lat,
                                     lng: escale.pickupLocation.lng,
                                     address: escale.pickupLocation.address,
@@ -1584,47 +1621,93 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                                   });
                                   setShowGpsChooser(true);
                                 }}
-                                className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2d6cb5] hover:bg-[#235896] active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
+                                className={`flex h-7 w-7 items-center justify-center rounded-xl text-white shadow-xs transition-all flex-shrink-0 cursor-pointer ${
+                                  isEscaleDone
+                                    ? "bg-slate-400 hover:bg-slate-500"
+                                    : "bg-[#2d6cb5] hover:bg-[#235896] active:scale-95"
+                                }`}
                                 title={`Itinéraire vers ${escale.passengerName}`}
                               >
                                 <Navigation className="h-3.5 w-3.5 fill-white" />
                               </button>
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <div className="flex items-start gap-2.5">
-                          <div className="flex flex-col items-center">
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-300 text-slate-600 text-[10px] font-bold">
-                              —
-                            </div>
-                            <div className="w-0.5 h-4 bg-slate-200 my-0.5" />
+                        );
+                      })
+                    ) : (
+                      <div className="flex items-start gap-2.5">
+                        <div className="flex flex-col items-center">
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-300 text-slate-600 text-[10px] font-bold">
+                            —
                           </div>
-                          <div className="min-w-0 flex-1 pt-0.5">
-                            <p className="text-[11px] font-medium text-slate-500 italic">
-                              Direct sans escale (aucun passager pour l'instant)
-                            </p>
-                          </div>
+                          <div className="w-0.5 h-4 bg-slate-200 my-0.5" />
                         </div>
-                      )}
+                        <div className="min-w-0 flex-1 pt-0.5">
+                          <p className="text-[11px] font-medium text-slate-500 italic">
+                            Direct sans escale (aucun passager pour l'instant)
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
-                      {/* 2.bis Points d'arrêt déclarés par le conducteur */}
-                      {nextTrip.stops && nextTrip.stops.length > 0 && (
-                        nextTrip.stops.map((stop, sIdx) => (
-                          <div key={`planned-stop-${sIdx}`} className="flex items-start gap-2.5">
+                    {/* 2.bis Points d'arrêt déclarés par le conducteur */}
+                    {nextTrip.stops && nextTrip.stops.length > 0 && (
+                      nextTrip.stops.map((stop, sIdx) => {
+                        const stopStepId = `stop-${sIdx}`;
+                        const isStopDone =
+                          nextTrip.status === "active" &&
+                          completedStepIds.includes(stopStepId);
+
+                        return (
+                          <div
+                            key={`planned-stop-${sIdx}`}
+                            className={`flex items-start gap-2.5 transition-all ${
+                              isStopDone ? "opacity-60" : ""
+                            }`}
+                          >
                             <div className="flex flex-col items-center">
-                              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-extrabold shadow-xs">
-                                A{sIdx + 1}
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  nextTrip.status === "active" &&
+                                  toggleStepCompleted(stopStepId)
+                                }
+                                className={`flex h-5 w-5 items-center justify-center rounded-full text-white text-[10px] font-extrabold shadow-xs transition-colors ${
+                                  isStopDone ? "bg-slate-400" : "bg-amber-500"
+                                }`}
+                                title={
+                                  isStopDone
+                                    ? "Arrêt effectué (cliquer pour réactiver)"
+                                    : `Point d'arrêt ${sIdx + 1}`
+                                }
+                              >
+                                {isStopDone ? (
+                                  <Check className="h-3 w-3 stroke-[3]" />
+                                ) : (
+                                  `A${sIdx + 1}`
+                                )}
+                              </button>
                               <div className="w-0.5 h-6 bg-slate-300 my-0.5" />
                             </div>
                             <div className="min-w-0 flex-1 pt-0.5">
                               <div className="flex items-center justify-between gap-1">
-                                <p className="font-bold text-amber-700 text-[11px] truncate">
+                                <p
+                                  className={`font-bold text-[11px] truncate transition-colors ${
+                                    isStopDone
+                                      ? "line-through text-slate-400 decoration-slate-400 decoration-2"
+                                      : "text-amber-700"
+                                  }`}
+                                >
                                   Point d'arrêt {sIdx + 1}
                                 </p>
                                 {stop.estimatedTime && (
-                                  <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                  <span
+                                    className={`text-[10px] font-medium whitespace-nowrap px-1.5 py-0.5 rounded border transition-colors ${
+                                      isStopDone
+                                        ? "line-through text-slate-400 bg-slate-100 border-slate-200"
+                                        : "text-slate-500 bg-white border-slate-200"
+                                    }`}
+                                  >
                                     {new Date(stop.estimatedTime).toLocaleTimeString([], {
                                       hour: "2-digit",
                                       minute: "2-digit",
@@ -1632,7 +1715,13 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <p className="text-slate-600 text-xs truncate mt-0.5">
+                              <p
+                                className={`text-xs truncate mt-0.5 transition-colors ${
+                                  isStopDone
+                                    ? "line-through text-slate-400 decoration-slate-400"
+                                    : "text-slate-600"
+                                }`}
+                              >
                                 {stop.address}
                               </p>
                             </div>
@@ -1644,6 +1733,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setGpsTarget({
+                                    id: stopStepId,
                                     lat: stop.lat,
                                     lng: stop.lng,
                                     address: stop.address,
@@ -1651,57 +1741,74 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                                   });
                                   setShowGpsChooser(true);
                                 }}
-                                className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2d6cb5] hover:bg-[#235896] active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
+                                className={`flex h-7 w-7 items-center justify-center rounded-xl text-white shadow-xs transition-all flex-shrink-0 cursor-pointer ${
+                                  isStopDone
+                                    ? "bg-slate-400 hover:bg-slate-500"
+                                    : "bg-[#2d6cb5] hover:bg-[#235896] active:scale-95"
+                                }`}
                                 title={`Itinéraire vers le point d'arrêt ${sIdx + 1}`}
                               >
                                 <Navigation className="h-3.5 w-3.5 fill-white" />
                               </button>
                             </div>
                           </div>
-                        ))
-                      )}
+                        );
+                      })
+                    )}
 
-                      {/* 3. Destination finale */}
-                      <div className="flex items-start gap-2.5">
-                        <div className="flex flex-col items-center">
-                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2d6cb5] text-white text-[10px] font-bold">
-                            <Church className="h-3 w-3" />
-                          </div>
-                        </div>
-                        <div className="min-w-0 flex-1 pt-0.5">
-                          <p className="font-bold text-[#2d6cb5] text-[11px] uppercase tracking-wide">
-                            {nextTrip.destinationLocation?.address?.includes("Église")
-                              ? "Destination (Église)"
-                              : "Destination finale"}
-                          </p>
-                          <p className="text-slate-600 text-xs truncate">
-                            {nextTrip.destinationLocation?.address || churchLocation.address}
-                          </p>
-                        </div>
-                        {/* Bouton Itinéraire pour la destination (logo seul) */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setGpsTarget({
-                                lat: nextTrip.destinationLocation?.lat ?? churchLocation.lat,
-                                lng: nextTrip.destinationLocation?.lng ?? churchLocation.lng,
-                                address: nextTrip.destinationLocation?.address ?? churchLocation.address,
-                                name: "Destination finale",
-                              });
-                              setShowGpsChooser(true);
-                            }}
-                            className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2d6cb5] hover:bg-[#235896] active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
-                            title="Itinéraire vers la destination finale"
-                          >
-                            <Navigation className="h-3.5 w-3.5 fill-white" />
-                          </button>
+                    {/* 3. Destination finale */}
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex flex-col items-center">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2d6cb5] text-white text-[10px] font-bold">
+                          <Church className="h-3 w-3" />
                         </div>
                       </div>
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <p className="font-bold text-[#2d6cb5] text-[11px] uppercase tracking-wide">
+                          {nextTrip.destinationLocation?.address?.includes("Église")
+                            ? "Destination (Église)"
+                            : "Destination finale"}
+                        </p>
+                        <p className="text-slate-600 text-xs truncate">
+                          {nextTrip.destinationLocation?.address || churchLocation.address}
+                        </p>
+                      </div>
+                      {/* Bouton Itinéraire pour la destination (logo seul) */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setGpsTarget({
+                              lat: nextTrip.destinationLocation?.lat ?? churchLocation.lat,
+                              lng: nextTrip.destinationLocation?.lng ?? churchLocation.lng,
+                              address: nextTrip.destinationLocation?.address ?? churchLocation.address,
+                              name: "Destination finale",
+                            });
+                            setShowGpsChooser(true);
+                          }}
+                          className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2d6cb5] hover:bg-[#235896] active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
+                          title="Itinéraire vers la destination finale"
+                        >
+                          <Navigation className="h-3.5 w-3.5 fill-white" />
+                        </button>
+                      </div>
                     </div>
+                  </div>
 
-                    {/* Boutons d'action Conducteur : Commencer le trajet & Voir détails */}
+                  {/* Boutons d'action Conducteur selon le statut du trajet :
+                      - Si actif : Bouton unique "Terminer le trajet"
+                      - Si planifié : Deux boutons "Commencer le trajet" & "Voir détails" */}
+                  {nextTrip.status === "active" ? (
+                    <button
+                      type="button"
+                      onClick={handleCompleteTrip}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#138872] to-[#2d6cb5] hover:opacity-95 active:scale-98 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-[#138872]/25 transition-all cursor-pointer"
+                    >
+                      <Check className="h-4 w-4 stroke-[3]" />
+                      <span>Terminer le trajet</span>
+                    </button>
+                  ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -1720,8 +1827,8 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                         <span>Voir détails</span>
                       </button>
                     </div>
-                  </div>
-                )
+                  )}
+                </div>
               ) : (
                 /* Section Passager : Suivi en direct du conducteur et de sa prochaine destination */
                 <div className="space-y-3">
