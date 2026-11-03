@@ -790,6 +790,7 @@ export const getNextUpcomingTrip = query({
           .collect();
 
         const acceptedRequests = allTripRequests.filter((q) => q.status === "accepted");
+        const pendingRequestsCount = allTripRequests.filter((q) => q.status === "pending").length;
         const tripReservedSeats = allTripRequests
           .filter((r) => r.status === "accepted" || r.status === "pending")
           .reduce((sum, r) => sum + (r.seatsRequested || 1), 0);
@@ -835,6 +836,7 @@ export const getNextUpcomingTrip = query({
           currentEscaleIndex: t.currentEscaleIndex,
           startedAt: t.startedAt,
           escales,
+          pendingRequestsCount,
         };
       })
     );
@@ -893,8 +895,8 @@ async function processTripReminders(ctx: MutationCtx) {
       if (!existingDriver45) {
         await ctx.db.insert("notifications", {
           userId: trip.driverId,
-          title: "Rappel trajet : Départ dans 45 min",
-          body: `Votre trajet vers ${dest} est prévu dans 45 minutes.`,
+          title: "Rappel trajet : Départ dans moins de 45 min",
+          body: `Votre trajet vers ${dest} commence dans moins de 45 minutes.`,
           type: "trip_reminder_45",
           relatedTripId: trip._id,
           link: `/trips/${trip._id}`,
@@ -920,8 +922,8 @@ async function processTripReminders(ctx: MutationCtx) {
         if (!existingPassenger45) {
           await ctx.db.insert("notifications", {
             userId: req.passengerId,
-            title: "Rappel trajet : Départ dans 45 min",
-            body: `Votre trajet avec ${driverName} vers ${dest} est prévu dans 45 minutes.`,
+            title: "Rappel trajet : Départ dans moins de 45 min",
+            body: `Votre trajet avec ${driverName} vers ${dest} commence dans moins de 45 minutes.`,
             type: "trip_reminder_45",
             relatedTripId: trip._id,
             link: `/trips/${trip._id}`,
@@ -939,8 +941,8 @@ async function processTripReminders(ctx: MutationCtx) {
       if (pushTokens45.length > 0) {
         await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
           pushTokens: pushTokens45,
-          title: "Rappel trajet : Départ dans 45 min",
-          body: `Votre trajet vers ${dest} est prévu dans 45 minutes.`,
+          title: "Rappel trajet : Départ dans moins de 45 min",
+          body: `Votre trajet vers ${dest} commence dans moins de 45 minutes.`,
           url: `/trips/${trip._id}`,
         });
       }
@@ -962,8 +964,8 @@ async function processTripReminders(ctx: MutationCtx) {
       if (!existingDriver5) {
         await ctx.db.insert("notifications", {
           userId: trip.driverId,
-          title: "Départ imminent dans 5 minutes ! 🚗",
-          body: `Votre trajet vers ${dest} commence dans 5 minutes. Rendez-vous sur la carte d'accueil.`,
+          title: "Départ imminent dans moins de 5 minutes ! 🚗",
+          body: `Votre trajet vers ${dest} commence dans moins de 5 minutes. Rendez-vous sur la carte d'accueil.`,
           type: "trip_reminder_5",
           relatedTripId: trip._id,
           link: "/",
@@ -989,8 +991,8 @@ async function processTripReminders(ctx: MutationCtx) {
         if (!existingPassenger5) {
           await ctx.db.insert("notifications", {
             userId: req.passengerId,
-            title: "Départ imminent dans 5 minutes ! 🚗",
-            body: `Votre trajet avec ${driverName} débute dans 5 minutes. Rejoignez votre point de rendez-vous.`,
+            title: "Départ imminent dans moins de 5 minutes ! 🚗",
+            body: `Votre trajet avec ${driverName} commence dans moins de 5 minutes. Rejoignez votre point de rendez-vous.`,
             type: "trip_reminder_5",
             relatedTripId: trip._id,
             link: "/",
@@ -1008,8 +1010,8 @@ async function processTripReminders(ctx: MutationCtx) {
       if (pushTokens5.length > 0) {
         await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
           pushTokens: pushTokens5,
-          title: "Départ imminent dans 5 minutes ! 🚗",
-          body: `Votre trajet vers ${dest} débute dans 5 minutes.`,
+          title: "Départ imminent dans moins de 5 minutes ! 🚗",
+          body: `Votre trajet vers ${dest} commence dans moins de 5 minutes.`,
           url: "/",
         });
       }
@@ -1034,5 +1036,33 @@ export const checkAndSendTripReminders = mutation({
   handler: async (ctx) => {
     await processTripReminders(ctx);
     return true;
+  },
+});
+
+// 15. Nettoyage complet de la base de données (trajets, demandes, notifications)
+// Conserve impérativement les utilisateurs, sessions, tokens et réglages d'église
+export const clearAllTripsAndRequests = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const allTrips = await ctx.db.query("trips").collect();
+    for (const t of allTrips) {
+      await ctx.db.delete(t._id);
+    }
+
+    const allRequests = await ctx.db.query("requests").collect();
+    for (const r of allRequests) {
+      await ctx.db.delete(r._id);
+    }
+
+    const allNotifs = await ctx.db.query("notifications").collect();
+    for (const n of allNotifs) {
+      await ctx.db.delete(n._id);
+    }
+
+    return {
+      deletedTrips: allTrips.length,
+      deletedRequests: allRequests.length,
+      deletedNotifications: allNotifs.length,
+    };
   },
 });

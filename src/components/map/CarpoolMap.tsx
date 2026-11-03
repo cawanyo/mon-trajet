@@ -110,6 +110,7 @@ export interface UpcomingTripItem {
   startedAt?: number;
   escales?: UpcomingEscaleItem[];
   stops?: Array<LocationPoint & { estimatedTime?: number; stopOrder?: number }>;
+  pendingRequestsCount?: number;
 }
 
 interface CarpoolMapProps {
@@ -1484,6 +1485,22 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                     <p className="text-xs text-slate-500 mt-0.5">
                       Départ à <span className="font-semibold text-slate-700">{formatHour(nextTrip.departureTime)}</span>
                     </p>
+                    {nextTrip.role === "driver" && (
+                      <div className="mt-1">
+                        {(nextTrip.pendingRequestsCount ?? 0) > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700">
+                            <Users className="h-3 w-3" />
+                            <span>
+                              {nextTrip.pendingRequestsCount} demande{nextTrip.pendingRequestsCount! > 1 ? "s" : ""} en attente
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            0 demande en attente
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1941,6 +1958,12 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                           ? `Conducteur : ${nextTrip.driverName}`
                           : distanceInfo}
                       </p>
+                      {nextTrip.role === "driver" && (nextTrip.pendingRequestsCount ?? 0) > 0 && (
+                        <p className="text-[11px] font-bold text-amber-700 mt-0.5 flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          <span>{nextTrip.pendingRequestsCount} demande{nextTrip.pendingRequestsCount! > 1 ? "s" : ""} en attente</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
@@ -1958,12 +1981,12 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                     Proposer un trajet
                   </button>
 
-                  {/* Besoin d'un trajet (Vert émeraude #38917d) */}
+                  {/* Chercher un trajet (Vert émeraude #38917d) */}
                   <button
                     onClick={() => onSignalNeedClick?.(userLocation || undefined)}
                     className="flex-1 flex items-center justify-center rounded-2xl bg-[#38917d] hover:bg-[#2e7d6b] active:scale-95 text-white font-bold py-3.5 px-3 text-xs sm:text-sm shadow-[0_8px_20px_rgba(56,145,125,0.28)] transition-all text-center"
                   >
-                    Besoin d'un trajet
+                    Chercher un trajet
                   </button>
                 </div>
               )}

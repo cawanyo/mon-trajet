@@ -97,13 +97,26 @@ export const createRequest = mutation({
 
       await ctx.db.insert("notifications", {
         userId: trip.driverId,
-        title: "Nouvelle demande de covoiturage",
+        title: "Nouvelle demande de covoiturage 🚗",
         body: `${user.name} a demandé ${args.seatsRequested} place(s) sur votre trajet.`,
         type: "request_received",
         relatedTripId: trip._id,
+        relatedRequestId: requestId,
+        link: `/trips/${trip._id}`,
         isRead: false,
         createdAt: Date.now(),
       });
+
+      // Envoi de la notification push en direct au téléphone du conducteur
+      const driver = await ctx.db.get(trip.driverId);
+      if (driver?.pushToken) {
+        await ctx.scheduler.runAfter(0, internal.push.dispatchPushNotifications, {
+          pushTokens: [driver.pushToken],
+          title: "Nouvelle demande de covoiturage 🚗",
+          body: `${user.name} a demandé ${args.seatsRequested} place(s) sur votre trajet.`,
+          url: `/trips/${trip._id}`,
+        });
+      }
 
       return requestId;
     }

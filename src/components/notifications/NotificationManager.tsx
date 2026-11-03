@@ -43,10 +43,17 @@ export function NotificationManager() {
   const triggerOpenDemandsCheck = useMutation(api.requests.processOpenDemandsLifecycleMutation);
   const updatePushToken = useMutation(api.users.updatePushToken);
 
-  // Synchronisation automatique de la souscription Web Push si autorisée
+  // Demande automatique de la permission de notifications dès l'arrivée sur l'application (comme pour la localisation)
   useEffect(() => {
-    if (!token) return;
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+
+    if (Notification.permission === "default") {
+      registerServiceWorkerAndSubscribe().then((subStr) => {
+        if (subStr && token) {
+          updatePushToken({ token, pushToken: subStr }).catch(() => {});
+        }
+      }).catch(() => {});
+    } else if (Notification.permission === "granted" && token) {
       registerServiceWorkerAndSubscribe().then((subStr) => {
         if (subStr) {
           updatePushToken({ token, pushToken: subStr }).catch(() => {});

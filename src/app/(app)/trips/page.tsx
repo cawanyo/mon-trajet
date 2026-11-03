@@ -21,6 +21,7 @@ import {
   Loader2,
   ChevronRight,
   Plus,
+  Search,
 } from "lucide-react";
 
 function TripsContent() {
@@ -417,7 +418,7 @@ function TripsContent() {
                     Recherchez un trajet disponible sur la carte pour aller à l'église.
                   </p>
                   <Link
-                    href="/"
+                    href="/rides/search"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white text-xs font-bold shadow-xs hover:opacity-95 transition-all mt-1"
                   >
                     <span>Trouver un trajet</span>
@@ -581,6 +582,29 @@ function TripsContent() {
             </div>
           )
         )}
+      </div>
+
+      {/* Boutons d'action rapides fixes en bas à droite (au-dessus du bottom tab) */}
+      <div
+        className="fixed right-4 z-40 flex flex-col items-end gap-2 pointer-events-none"
+        style={{
+          bottom: "max(5.25rem, calc(env(safe-area-inset-bottom, 0px) + 5rem))",
+        }}
+      >
+        <Link
+          href="/rides/search"
+          className="pointer-events-auto flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-white text-[#175276] border border-slate-200/90 shadow-[0_4px_16px_rgba(23,82,118,0.18)] hover:shadow-[0_6px_20px_rgba(23,82,118,0.25)] hover:bg-slate-50 active:scale-95 transition-all text-xs font-bold"
+        >
+          <Search className="h-4 w-4 text-[#249e83]" />
+          <span>Chercher</span>
+        </Link>
+        <Link
+          href="/trips/create"
+          className="pointer-events-auto flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-[#175276] via-[#1b7f80] to-[#249e83] text-white shadow-[0_4px_16px_rgba(23,82,118,0.28)] hover:shadow-[0_6px_20px_rgba(23,82,118,0.38)] hover:opacity-95 active:scale-95 transition-all text-xs font-bold"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Proposer</span>
+        </Link>
       </div>
 
       <BottomNav userRole={user?.role ?? "user"} />
