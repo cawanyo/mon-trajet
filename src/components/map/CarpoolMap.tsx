@@ -165,6 +165,12 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   const [selectedNeed, setSelectedNeed] = useState<NeedItem | null>(null);
   const [showGpsChooser, setShowGpsChooser] = useState(false);
   const [isGpsPreviewMode, setIsGpsPreviewMode] = useState(false);
+  const [gpsTarget, setGpsTarget] = useState<{
+    lat: number;
+    lng: number;
+    address: string;
+    name?: string;
+  } | null>(null);
 
   // Position par défaut de la carte
   const [viewState, setViewState] = useState({
@@ -263,24 +269,33 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Détection de trajet imminent : à 5 minutes ou moins du départ, ou si le conducteur est déjà en route ("active")
+  // Détection de trajet à afficher en vue détaillée :
+  // - Pour le conducteur : affiché directement dès qu'un prochain trajet existe (planifié ou actif, sans attendre les 5 minutes)
+  // - Pour le passager : affiché si actif ou dans les 5 minutes du départ
   const diffMs = nextTrip ? nextTrip.departureTime - currentTime : Infinity;
   const isAutoCancelled = Boolean(
     nextTrip &&
       nextTrip.status === "planned" &&
       currentTime > nextTrip.departureTime + 45 * 60 * 1000
   );
-  const isTripImminent = Boolean(
+  const isDriverNextTrip = Boolean(
     nextTrip &&
+      nextTrip.role === "driver" &&
       !isAutoCancelled &&
-      (nextTrip.status === "active" || diffMs <= 5 * 60 * 1000) &&
       nextTrip.status !== "completed" &&
       nextTrip.status !== "cancelled"
   );
-  // Le bouton "Y aller" n'est visible qu'à 45 min du trajet (ou si déjà actif)
+  const isTripImminent = Boolean(
+    nextTrip &&
+      !isAutoCancelled &&
+      (nextTrip.status === "active" || isDriverNextTrip || diffMs <= 5 * 60 * 1000) &&
+      nextTrip.status !== "completed" &&
+      nextTrip.status !== "cancelled"
+  );
+  // Le bouton de navigation avancée n'est visible qu'à 45 min du trajet (ou si déjà actif)
   const isWithin45Min = Boolean(
     nextTrip &&
-      (nextTrip.status === "active" || diffMs <= 45 * 60 * 1000)
+      (nextTrip.status === "active" || isDriverNextTrip || diffMs <= 45 * 60 * 1000)
   );
 
   // Formatage du décompte affiché à côté du trajet
@@ -434,6 +449,43 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
     }
   };
 
+  // Démarrer directement le trajet pour le conducteur sans proposer les applications d'itinéraire
+  const handleStartTripDirect = async () => {
+    if (!nextTrip || nextTrip.role !== "driver") return;
+
+    const diff = nextTrip.departureTime - Date.now();
+    if (diff < -45 * 60 * 1000 && nextTrip.status === "planned") {
+      toast.error("Le délai de 45 minutes est dépassé. Ce trajet est considéré comme annulé.");
+      return;
+    }
+
+    if (diff > 15 * 60 * 1000 && nextTrip.status !== "active") {
+      const min = Math.round(diff / 60000);
+      const shouldStart = await confirm({
+        title: "Démarrage anticipé du trajet",
+        message: `Le départ est prévu dans ${min} minutes. Souhaitez-vous démarrer le trajet dès maintenant pour vos passagers ?`,
+        confirmText: "Oui, démarrer",
+        cancelText: "Annuler",
+      });
+      if (!shouldStart) return;
+    }
+
+    if (nextTrip.status !== "active") {
+      try {
+        await onStartTrip?.(
+          nextTrip._id,
+          userLocation || undefined,
+          driverNextDestination
+        );
+        startWatchingDriverPosition(nextTrip._id);
+        toast.success("Trajet démarré !");
+      } catch (e: any) {
+        console.warn("Erreur démarrage trajet :", e);
+        toast.error(e?.message || "Erreur lors du démarrage du trajet");
+      }
+    }
+  };
+
   const handleDriverGoClick = () => {
     if (!nextTrip) return;
     setIsGpsPreviewMode(false);
@@ -449,8 +501,8 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   const handleLaunchNavigation = async () => {
     if (!nextTrip || nextTrip.role !== "driver") return;
 
-    if (isGpsPreviewMode) {
-      // Consultation de l'itinéraire avant 45 min : ouvre le GPS mais ne démarre pas le trajet
+    if (gpsTarget || isGpsPreviewMode) {
+      // Consultation de l'itinéraire ou étape spécifique : ouvre le GPS sans démarrer le trajet
       return;
     }
 
@@ -1465,7 +1517,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                 ) : (
                   /* 2. TRAJET PLANIFIÉ (PAS ENCORE LANCÉ) : VUE RÉCAPITULATIVE ET BOUTON Y ALLER */
                   <div className="space-y-2.5">
-                    <div className="rounded-2xl bg-slate-50/90 border border-slate-200/70 p-3 max-h-44 overflow-y-auto space-y-2.5 text-xs">
+                    <div className="rounded-2xl bg-slate-50/90 border border-slate-200/70 p-3 max-h-48 overflow-y-auto space-y-2.5 text-xs">
                       {/* 1. Point de départ */}
                       <div className="flex items-start gap-2.5">
                         <div className="flex flex-col items-center">
@@ -1507,6 +1559,37 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                                 {escale.pickupLocation.address}
                               </p>
                             </div>
+
+                            {/* Boutons d'action pour l'escale : Appel (si tél) & Itinéraire (logos seuls) */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                              {escale.passengerPhone && (
+                                <a
+                                  href={`tel:${escale.passengerPhone}`}
+                                  className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
+                                  title={`Appeler ${escale.passengerName}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Phone className="h-3.5 w-3.5 fill-white" />
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setGpsTarget({
+                                    lat: escale.pickupLocation.lat,
+                                    lng: escale.pickupLocation.lng,
+                                    address: escale.pickupLocation.address,
+                                    name: escale.passengerName,
+                                  });
+                                  setShowGpsChooser(true);
+                                }}
+                                className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2d6cb5] hover:bg-[#235896] active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
+                                title={`Itinéraire vers ${escale.passengerName}`}
+                              >
+                                <Navigation className="h-3.5 w-3.5 fill-white" />
+                              </button>
+                            </div>
                           </div>
                         ))
                       ) : (
@@ -1525,10 +1608,65 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                         </div>
                       )}
 
+                      {/* 2.bis Points d'arrêt déclarés par le conducteur */}
+                      {nextTrip.stops && nextTrip.stops.length > 0 && (
+                        nextTrip.stops.map((stop, sIdx) => (
+                          <div key={`planned-stop-${sIdx}`} className="flex items-start gap-2.5">
+                            <div className="flex flex-col items-center">
+                              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-extrabold shadow-xs">
+                                A{sIdx + 1}
+                              </div>
+                              <div className="w-0.5 h-6 bg-slate-300 my-0.5" />
+                            </div>
+                            <div className="min-w-0 flex-1 pt-0.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="font-bold text-amber-700 text-[11px] truncate">
+                                  Point d'arrêt {sIdx + 1}
+                                </p>
+                                {stop.estimatedTime && (
+                                  <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                    {new Date(stop.estimatedTime).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-slate-600 text-xs truncate mt-0.5">
+                                {stop.address}
+                              </p>
+                            </div>
+
+                            {/* Bouton Itinéraire pour le point d'arrêt (logo seul) */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setGpsTarget({
+                                    lat: stop.lat,
+                                    lng: stop.lng,
+                                    address: stop.address,
+                                    name: `Arrêt ${sIdx + 1}`,
+                                  });
+                                  setShowGpsChooser(true);
+                                }}
+                                className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2d6cb5] hover:bg-[#235896] active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
+                                title={`Itinéraire vers le point d'arrêt ${sIdx + 1}`}
+                              >
+                                <Navigation className="h-3.5 w-3.5 fill-white" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+
                       {/* 3. Destination finale */}
                       <div className="flex items-start gap-2.5">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2d6cb5] text-white text-[10px] font-bold">
-                          <Church className="h-3 w-3" />
+                        <div className="flex flex-col items-center">
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2d6cb5] text-white text-[10px] font-bold">
+                            <Church className="h-3 w-3" />
+                          </div>
                         </div>
                         <div className="min-w-0 flex-1 pt-0.5">
                           <p className="font-bold text-[#2d6cb5] text-[11px] uppercase tracking-wide">
@@ -1540,27 +1678,48 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                             {nextTrip.destinationLocation?.address || churchLocation.address}
                           </p>
                         </div>
+                        {/* Bouton Itinéraire pour la destination (logo seul) */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setGpsTarget({
+                                lat: nextTrip.destinationLocation?.lat ?? churchLocation.lat,
+                                lng: nextTrip.destinationLocation?.lng ?? churchLocation.lng,
+                                address: nextTrip.destinationLocation?.address ?? churchLocation.address,
+                                name: "Destination finale",
+                              });
+                              setShowGpsChooser(true);
+                            }}
+                            className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2d6cb5] hover:bg-[#235896] active:scale-95 text-white shadow-xs transition-all flex-shrink-0 cursor-pointer"
+                            title="Itinéraire vers la destination finale"
+                          >
+                            <Navigation className="h-3.5 w-3.5 fill-white" />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Bouton de navigation selon le timing : "Y aller" à <= 45 min, ou "Voir l'itinéraire" avant 45 min */}
-                    {isWithin45Min ? (
+                    {/* Boutons d'action Conducteur : Commencer le trajet & Voir détails */}
+                    <div className="grid grid-cols-2 gap-2">
                       <button
-                        onClick={handleDriverGoClick}
-                        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2d6cb5] to-[#138872] hover:from-[#255ea0] hover:to-[#0f6c5b] active:scale-98 text-white font-extrabold py-3.5 px-4 text-sm shadow-[0_8px_20px_rgba(45,108,181,0.28)] transition-all cursor-pointer"
+                        type="button"
+                        onClick={handleStartTripDirect}
+                        className="flex items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-[#138872] to-[#207567] hover:opacity-95 active:scale-98 text-white font-extrabold py-3.5 px-3 text-xs sm:text-sm shadow-md shadow-[#138872]/20 transition-all cursor-pointer"
                       >
-                        <Navigation className="h-4 w-4 fill-white" />
-                        <span>Y aller</span>
+                        <Car className="h-4 w-4 stroke-[2.2]" />
+                        <span>Commencer le trajet</span>
                       </button>
-                    ) : (
                       <button
-                        onClick={handleDriverPreviewRouteClick}
-                        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200/90 active:scale-98 text-slate-800 font-extrabold py-3.5 px-4 text-sm shadow-xs transition-all cursor-pointer"
+                        type="button"
+                        onClick={() => router.push(`/trips/${nextTrip._id}`)}
+                        className="flex items-center justify-center gap-1.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 active:scale-98 text-[#1a3860] font-extrabold py-3.5 px-3 text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
                       >
-                        <Route className="h-4 w-4 text-[#2d6cb5]" />
-                        <span>Voir l'itinéraire</span>
+                        <Eye className="h-4 w-4 text-[#2d6cb5]" />
+                        <span>Voir détails</span>
                       </button>
-                    )}
+                    </div>
                   </div>
                 )
               ) : (
@@ -1705,9 +1864,18 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
       {nextTrip && (
         <GpsChooserModal
           isOpen={showGpsChooser}
-          onClose={() => setShowGpsChooser(false)}
+          onClose={() => {
+            setShowGpsChooser(false);
+            setGpsTarget(null);
+          }}
           origin={
-            nextTrip.role === "passenger" && nextTrip.myPickupLocation
+            gpsTarget
+              ? userLocation || nextTrip.currentLocation || nextTrip.departureLocation || {
+                  lat: activeUserPos.lat,
+                  lng: activeUserPos.lng,
+                  address: "Ma position",
+                }
+              : nextTrip.role === "passenger" && nextTrip.myPickupLocation
               ? nextTrip.myPickupLocation
               : nextTrip.currentLocation || nextTrip.departureLocation || {
                   lat: activeUserPos.lat,
@@ -1715,9 +1883,15 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                   address: "Ma position",
                 }
           }
-          destination={nextTrip.destinationLocation || churchLocation}
+          destination={
+            gpsTarget
+              ? { lat: gpsTarget.lat, lng: gpsTarget.lng, address: gpsTarget.address, name: gpsTarget.name }
+              : nextTrip.destinationLocation || churchLocation
+          }
           waypoints={
-            nextTrip.role === "driver"
+            gpsTarget
+              ? []
+              : nextTrip.role === "driver"
               ? optimalEscales.slice(currentEscaleIndex).map((e) => ({
                   lat: e.pickupLocation.lat,
                   lng: e.pickupLocation.lng,
