@@ -545,20 +545,18 @@ function DemandsContent() {
               <div className="grid grid-cols-2 gap-3">
                 {/* Date */}
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-[#1a3860]">
-                    Date du départ
+                  <label className="text-xs font-bold text-[#1a3860] flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-[#175276]" />
+                    <span>Date du départ</span>
                   </label>
-                  <div className="relative flex items-center">
-                    <Calendar className="absolute left-3 h-4 w-4 text-[#175276] pointer-events-none" />
-                    <input
-                      type="date"
-                      required
-                      min={todayStr}
-                      value={pickupDate}
-                      onChange={(e) => setPickupDate(e.target.value)}
-                      className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 pl-9 pr-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#175276]/30"
-                    />
-                  </div>
+                  <input
+                    type="date"
+                    required
+                    min={todayStr}
+                    value={pickupDate}
+                    onChange={(e) => setPickupDate(e.target.value)}
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#175276]/30 cursor-pointer"
+                  />
                 </div>
 
                 {/* Heure */}

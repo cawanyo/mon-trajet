@@ -15,6 +15,10 @@ export const dispatchPushNotifications = internalAction({
   handler: async (ctx, args) => {
     if (!args.pushTokens || args.pushTokens.length === 0) return;
 
+    // Déduplication des tokens pour éviter l'envoi de requêtes multiples vers le même appareil
+    const uniqueTokens = Array.from(new Set(args.pushTokens.filter(Boolean)));
+    if (uniqueTokens.length === 0) return;
+
     // URL de l'application de production (ou locale si configurée)
     const appUrl =
       process.env.APP_URL ||
@@ -28,7 +32,7 @@ export const dispatchPushNotifications = internalAction({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          subscriptions: args.pushTokens,
+          subscriptions: uniqueTokens,
           title: args.title,
           body: args.body,
           url: args.url || "/",

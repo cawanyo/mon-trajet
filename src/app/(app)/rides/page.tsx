@@ -900,21 +900,23 @@ function RideResultsContent() {
             <div className="space-y-2">
               <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200/80 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Date pour laquelle le trajet est demandé
-                  </span>
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <Calendar className="h-3.5 w-3.5 text-[#138872]" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Date pour laquelle le trajet est demandé
+                    </span>
+                  </div>
                   <span className="text-xs font-black text-[#138872]">
                     {formatDemandTargetDate(needDate)}
                   </span>
                 </div>
-                <div className="relative flex items-center">
-                  <Calendar className="absolute left-3 h-4 w-4 text-[#138872] pointer-events-none" />
+                <div className="relative">
                   <input
                     type="date"
                     value={needDate}
                     min={todayStr}
                     onChange={(e) => setNeedDate(e.target.value)}
-                    className="w-full h-10 pl-9 pr-3 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-bold text-[#1a3860] focus:outline-none focus:ring-2 focus:ring-[#138872]/20 focus:border-[#138872]"
+                    className="w-full h-10 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-bold text-[#1a3860] focus:outline-none focus:ring-2 focus:ring-[#138872]/20 focus:border-[#138872] cursor-pointer"
                   />
                 </div>
               </div>

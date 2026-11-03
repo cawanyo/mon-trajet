@@ -357,7 +357,7 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
   const countdown = useMemo(() => {
     if (!nextTrip) return { text: "", isPast: false };
     if (isAutoCancelled) return { text: "Annulé", isPast: true };
-    if (nextTrip.status === "active") return { text: "En cours", isPast: false };
+    if (nextTrip.status === "active") return { text: "En route", isPast: false };
 
     const diff = nextTrip.departureTime - currentTime;
     if (diff <= 0) {
@@ -1487,9 +1487,14 @@ export const CarpoolMap: React.FC<CarpoolMapProps> = ({
                   </div>
                 </div>
 
-                {/* Décompte à côté du trajet */}
+                {/* Décompte ou statut à côté du trajet */}
                 <div className="flex-shrink-0">
-                  {countdown.isPast ? (
+                  {nextTrip.status === "active" ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[#138872] text-xs font-black shadow-xs">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span>En route</span>
+                    </div>
+                  ) : countdown.isPast ? (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black shadow-xs animate-pulse">
                       <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
                       <span>Départ !</span>

@@ -33,17 +33,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, sent: 0, message: "Aucune souscription valide fournie" });
     }
 
+    // Déduplication stricte des abonnements par endpoint pour éviter tout envoi en double sur le même appareil
+    const uniqueSubsMap = new Map<string, any>();
+    for (const sub of subsList) {
+      const endpointKey =
+        sub?.endpoint ||
+        (typeof sub === "string" ? sub : JSON.stringify(sub));
+      if (endpointKey && !uniqueSubsMap.has(endpointKey)) {
+        uniqueSubsMap.set(endpointKey, sub);
+      }
+    }
+    const uniqueSubs = Array.from(uniqueSubsMap.values());
+
+    const deterministicTag =
+      body.tag ||
+      `notif_${(title || "").slice(0, 20)}_${(messageBody || "").slice(0, 25)}`.replace(
+        /[^a-zA-Z0-9_-]/g,
+        "_"
+      );
+
     const payload = JSON.stringify({
       title: title || "Mon Trajet Église",
       body: messageBody || "Nouvelle mise à jour de votre trajet.",
       url: url || "/",
+      tag: deterministicTag,
     });
 
     let sent = 0;
     const errors: any[] = [];
 
     await Promise.allSettled(
-      subsList.map(async (sub) => {
+      uniqueSubs.map(async (sub) => {
         try {
           await webpush.sendNotification(sub, payload, {
             TTL: 60 * 60 * 24, // 24 heures
@@ -57,7 +77,7 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    return NextResponse.json({ success: true, sent, attempted: subsList.length, errors });
+    return NextResponse.json({ success: true, sent, attempted: uniqueSubs.length, errors });
   } catch (error: any) {
     console.error("Erreur API /api/push/send :", error);
     return NextResponse.json({ success: false, error: error?.message }, { status: 500 });

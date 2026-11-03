@@ -101,11 +101,21 @@ self.addEventListener("push", (event) => {
     }
   }
 
+  const tag =
+    data.tag ||
+    data.id ||
+    `notif_${(data.title || "").slice(0, 15)}_${(data.body || "").slice(0, 20)}`.replace(
+      /[^a-zA-Z0-9_-]/g,
+      "_"
+    );
+
   const options = {
     body: data.body,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-192x192.png",
     vibrate: [200, 100, 200],
+    tag,
+    renotify: false,
     data: {
       url: data.url || "/notifications",
     },

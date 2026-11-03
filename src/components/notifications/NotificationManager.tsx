@@ -94,8 +94,16 @@ export function NotificationManager() {
         try {
           const targetUrl = getNotificationTargetUrl(notif);
 
-          // A. Afficher la notification native sur le téléphone (Notification API / Service Worker)
+          // A. Alerte in-app fluide en bas de l'écran (toujours active pour avertir l'utilisateur dans l'interface)
+          toast.info(`${notif.title} : ${notif.body}`);
+
+          // B. Notification système native sur le téléphone :
+          // Uniquement si l'application est en arrière-plan (non visible) pour éviter tout doublon avec le toast et le Web Push
+          const isPageVisible =
+            typeof document !== "undefined" && document.visibilityState === "visible";
+
           if (
+            !isPageVisible &&
             typeof window !== "undefined" &&
             "Notification" in window &&
             Notification.permission === "granted"
@@ -110,6 +118,7 @@ export function NotificationManager() {
                     vibrate: [200, 100, 200],
                     data: { url: targetUrl },
                     tag: notif._id,
+                    renotify: false,
                   } as NotificationOptions);
                 })
                 .catch(() => {
@@ -119,6 +128,7 @@ export function NotificationManager() {
                       body: notif.body,
                       icon: "/icons/icon-192x192.png",
                       data: { url: targetUrl },
+                      tag: notif._id,
                     });
                     n.onclick = () => {
                       window.focus();
@@ -128,16 +138,7 @@ export function NotificationManager() {
                   } catch (e) {}
                 });
             }
-
-            if ("vibrate" in navigator) {
-              try {
-                navigator.vibrate([200, 100, 200]);
-              } catch (e) {}
-            }
           }
-
-          // B. Alerte in-app fluide en bas de l'écran
-          toast.info(`${notif.title} : ${notif.body}`);
         } catch (err) {
           console.warn("Erreur affichage notification:", err);
         }
